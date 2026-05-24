@@ -41,8 +41,12 @@ function normalizeBlastRadius(blast, logs) {
     0,
     extractNumber(raw, [
       '(\\d[\\d,]*)\\s+(?:payment|charge|api)\\s+requests?\\s+(?:rejected|failed|dropped)',
+      '(\\d[\\d,]*)\\s+requests?\\s+(?:rejected|failed|dropped)',
       '(\\d[\\d,]*)\\s+requests?\\s+returned\\s+5\\d\\d',
-      'rejecting\\s+(\\d[\\d,]*)\\s+requests?'
+      'rejecting\\s+(\\d[\\d,]*)\\s+requests?',
+      'dropped\\s+(\\d[\\d,]*)\\s+requests?',
+      '(\\d[\\d,]*)\\s+requests?\\s+timed?\\s*out',
+      'failed\\s+to\\s+process\\s+(\\d[\\d,]*)\\s+requests?'
     ])
   );
 
