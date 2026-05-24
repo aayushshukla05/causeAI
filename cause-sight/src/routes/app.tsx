@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useAuth } from "../context/AuthContext";
 import { useEffect, useMemo, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
@@ -187,6 +188,18 @@ const demoScenarios: DemoScenario[] = [
 ];
 
 const sampleLogs = "";
+
+function LogOutButton() {
+  const { logout } = useAuth()
+  return (
+    <button
+      onClick={logout}
+      className="font-mono text-[10px] uppercase tracking-widest text-[#565449] hover:text-[#D8CFBC]/60 transition-colors"
+    >
+      sign out
+    </button>
+  )
+}
 
 function AppPage() {
   const [incidents, setIncidents] = useState<IncidentSummary[]>([]);
@@ -496,9 +509,12 @@ function AppPage() {
             )}
           </div>
           <div className="mt-auto border-t border-[#565449]/30 p-5">
-            <div className="flex items-center gap-2 text-xs text-[#D8CFBC]/40">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#10b981]" />
-              <span className="font-mono">agent.online</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs text-[#D8CFBC]/40">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#10b981]" />
+                <span className="font-mono">agent.online</span>
+              </div>
+              <LogOutButton />
             </div>
           </div>
         </aside>
