@@ -298,3 +298,33 @@ create table if not exists postmortems (
   report_markdown text
 );
 `.trim()
+
+export async function fetchIncidentsByDate(days = 90) {
+  try {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    const { data, error } = await supabase.from('incidents').select('id, created_at, analysis_results(severity)').gte('created_at', since.toISOString()).order('created_at', { ascending: true });
+    if (error) throw error;
+    const severityRank = { P0: 3, P1: 2, P2: 1 };
+    const byDate = {};
+    for (const incident of data || []) {
+      const date = incident.created_at.slice(0, 10);
+      const severity = Array.isArray(incident.analysis_results) && incident.analysis_results[0]?.severity ? incident.analysis_results[0].severity : 'P2';
+      if (!byDate[date]) byDate[date] = { date, count: 0, worstSeverity: 'P2' };
+      byDate[date].count += 1;
+      if ((severityRank[severity] || 0) > (severityRank[byDate[date].worstSeverity] || 0)) byDate[date].worstSeverity = severity;
+    }
+    return Object.values(byDate);
+  } catch (err) { console.error('[DB] fetchIncidentsByDate error:', err.message); return []; }
+}
+
+export async function fetchRecentIncidentsForBriefing(limit = 20) {
+  try {
+    const { data, error } = await supabase.from('incidents').select('id, scenario_name, created_at, analysis_results(root_cause, root_cause_service, severity, business_impact, immediate_fix, cascade_chain)').order('created_at', { ascending: false }).limit(limit);
+    if (error) throw error;
+    return (data || []).map(inc => {
+      const a = Array.isArray(inc.analysis_results) ? inc.analysis_results[0] : null;
+      return { id: inc.id, scenario_name: inc.scenario_name, created_at: inc.created_at, root_cause: a?.root_cause ?? null, root_cause_service: a?.root_cause_service ?? null, severity: a?.severity ?? 'P2', business_impact: a?.business_impact ?? null, immediate_fix: a?.immediate_fix ?? null, cascade_chain: a?.cascade_chain ?? [] };
+    });
+  } catch (err) { console.error('[DB] fetchRecentIncidentsForBriefing error:', err.message); return []; }
+}

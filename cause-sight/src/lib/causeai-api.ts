@@ -184,9 +184,7 @@ export function normalizeAnalysis(value: unknown): CauseAnalysis | null {
     },
     timeline,
     affectedServices,
-    cascadeChain: timelineChain.length
-      ? timelineChain
-      : readArray<string>(raw, "cascadeChain", "cascade_chain"),
+    cascadeChain: readArray<string>(raw, "cascadeChain", "cascade_chain"),
     cascadeBranches: readArray<string>(raw, "cascadeBranches", "cascade_branches"),
     immediateFix: readString(raw, "immediateFix", "immediate_fix"),
     permanentFix: readString(raw, "permanentFix", "permanent_fix"),
@@ -325,4 +323,25 @@ export async function fetchPostmortems() {
   return parseResponse<Array<{ id: number | string; title?: string; content: string; created_at: string }>>(
     await fetch(`${API_BASE}/postmortem`),
   );
+}
+
+export type HeatmapDay = { date: string; count: number; worstSeverity: 'P0' | 'P1' | 'P2'; };
+export type BlastPrediction = { riskLevel: 'low' | 'medium' | 'high' | 'critical'; summary: string; predictedAffectedServices: Array<{ service: string; reason: string; likelihood: 'low' | 'medium' | 'high'; }>; potentialFailureModes: string[]; recommendations: string[]; suggestedDeployWindow: string; rollbackPlan: string; };
+export type OnCallBriefing = { summary: string; recurringIssues: Array<{ service: string; occurrences: number; pattern: string; }>; activeP0s: Array<{ title: string; service: string; hoursAgo: number; status: string; }>; recommendedActions: string[]; healthSignal: 'green' | 'amber' | 'red'; generatedAt: string; incidentCount: number; };
+
+export async function fetchHeatmap(days = 90): Promise<HeatmapDay[]> {
+  const data = await parseResponse<{ heatmap?: HeatmapDay[] }>(await fetch(`${API_BASE}/incidents/heatmap?days=${days}`));
+  return data.heatmap || [];
+}
+
+export async function predictBlastRadius(deployDescription: string): Promise<BlastPrediction> {
+  const data = await parseResponse<{ prediction?: BlastPrediction }>(await fetch(`${API_BASE}/predict`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deployDescription }) }));
+  if (!data.prediction) throw new Error('No prediction returned');
+  return data.prediction;
+}
+
+export async function generateOnCallBriefing(): Promise<OnCallBriefing> {
+  const data = await parseResponse<{ briefing?: OnCallBriefing }>(await fetch(`${API_BASE}/briefing`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }));
+  if (!data.briefing) throw new Error('No briefing returned');
+  return data.briefing;
 }

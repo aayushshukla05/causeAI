@@ -32,6 +32,12 @@ import {
   normalizeAnalysis,
   savePostmortem,
   sendChatMessage,
+  fetchHeatmap,
+  predictBlastRadius,
+  generateOnCallBriefing,
+  type HeatmapDay,
+  type BlastPrediction,
+  type OnCallBriefing,
   type CauseAnalysis,
   type IncidentSummary,
   type StreamStep,
@@ -205,6 +211,18 @@ function AppPage() {
   const [postmortemCount, setPostmortemCount] = useState<number | null>(null);
   const [generatedPostmortem, setGeneratedPostmortem] = useState("");
   const [showHistoryPanel, setShowHistoryPanel] = useState(false);
+  const [showAgentDrawer, setShowAgentDrawer] = useState(false);
+  const [showPredictModal, setShowPredictModal] = useState(false);
+  const [showBriefingModal, setShowBriefingModal] = useState(false);
+  const [predictInput, setPredictInput] = useState('');
+  const [predictLoading, setPredictLoading] = useState(false);
+  const [predictResult, setPredictResult] = useState<BlastPrediction | null>(null);
+  const [predictError, setPredictError] = useState('');
+  const [briefingLoading, setBriefingLoading] = useState(false);
+  const [briefingResult, setBriefingResult] = useState<OnCallBriefing | null>(null);
+  const [briefingError, setBriefingError] = useState('');
+  const [heatmapData, setHeatmapData] = useState<HeatmapDay[]>([]);
+  const [heatmapLoading, setHeatmapLoading] = useState(true);
   const [activeScenarioName, setActiveScenarioName] = useState("Incident Analysis");
 
   const severityCounts = useMemo(() => {
@@ -220,6 +238,7 @@ function AppPage() {
   useEffect(() => {
     void refreshIncidents();
     void refreshPostmortemCount();
+    fetchHeatmap(365).then(setHeatmapData).catch(() => {}).finally(() => setHeatmapLoading(false));
   }, []);
 
   useEffect(() => {
@@ -514,6 +533,28 @@ function AppPage() {
                 >
                   Analyze New Incident
                 </button>
+                <button
+                  onClick={() => { setBriefingResult(null); setBriefingError(''); setShowBriefingModal(true); }}
+                  className="inline-flex items-center gap-2 rounded-md border border-[#565449]/60 bg-[#1D1E17] px-3 py-1.5 text-sm text-[#D8CFBC]/80 transition-all hover:bg-[#565449]/20 hover:text-[#FFFBF4]"
+                >
+                  <FileText className="h-4 w-4" />
+                  Briefing
+                </button>
+                <button
+                  onClick={() => { setPredictResult(null); setPredictError(''); setPredictInput(''); setShowPredictModal(true); }}
+                  className="inline-flex items-center gap-2 rounded-md border border-[#10b981]/50 bg-[#10b981]/10 px-3 py-1.5 text-sm text-[#10b981] shadow-[0_0_12px_rgba(16,185,129,0.15)] transition-all hover:bg-[#10b981]/20"
+                >
+                  <Zap className="h-4 w-4" />
+                  Predict Blast
+                </button>
+                <button
+                  onClick={() => setShowAgentDrawer(true)}
+                  disabled={!reportReady}
+                  className="inline-flex items-center gap-2 rounded-md border border-[#f59e0b]/60 bg-[#f59e0b]/10 px-3 py-1.5 text-sm text-[#f59e0b] shadow-[0_0_12px_rgba(245,158,11,0.2)] transition-all hover:bg-[#f59e0b]/20 hover:shadow-[0_0_18px_rgba(245,158,11,0.35)] disabled:opacity-40"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  Ask Agent
+                </button>
               </div>
             </div>
 
@@ -601,7 +642,6 @@ function AppPage() {
                         <p className="mt-1 text-xs text-[#D8CFBC]/50">requests dropped</p>
                       </div>
                     </div>
-                    {(messagesStuck > 0 || oversoldOrders > 0 || misroutedOrders > 0) && (
                       <div className="mb-5 grid gap-2 sm:grid-cols-2">
                         {messagesStuck > 0 && (
                           <div className="rounded-md border border-[#565449]/50 bg-[#11120D] px-3 py-2">
@@ -609,6 +649,7 @@ function AppPage() {
                             <p className="text-xs text-[#D8CFBC]/55">emails/messages stuck in queue</p>
                           </div>
                         )}
+                
                         {oversoldOrders > 0 && (
                           <div className="rounded-md border border-[#565449]/50 bg-[#11120D] px-3 py-2">
                             <p className="font-mono text-2xl font-bold text-[#ef4444]">{oversoldOrders.toLocaleString()}</p>
@@ -622,7 +663,6 @@ function AppPage() {
                           </div>
                         )}
                       </div>
-                    )}
                     <p className="mb-2 text-[10px] font-mono uppercase tracking-widest text-[#565449]">Endpoints</p>
                     <div className="flex flex-wrap gap-2">
                       {(affectedEndpoints.length ? affectedEndpoints : ["No endpoint details"]).map((endpoint) => (
@@ -719,6 +759,8 @@ function AppPage() {
                   />
                 </div>
 
+                <HeatmapWidget data={heatmapData} loading={heatmapLoading} />
+
                 <div className="flex items-center gap-6 border-b border-[#565449]/40">
                   {[
                     { id: "trend", label: "Trend", Icon: TrendingUp },
@@ -806,6 +848,67 @@ function AppPage() {
         </main>
       </div>
 
+      {showAgentDrawer && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowAgentDrawer(false)} />
+          <div className="relative z-10 flex h-full w-full max-w-md flex-col border-l border-[#f59e0b]/30 bg-[#11120D] shadow-[0_0_40px_rgba(245,158,11,0.15)]">
+            <div className="flex items-center justify-between border-b border-[#f59e0b]/20 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-[#f59e0b]" />
+                <p className="font-mono text-xs uppercase tracking-widest text-[#f59e0b]/80">Ask Agent</p>
+              </div>
+              <button onClick={() => setShowAgentDrawer(false)} className="rounded p-1 text-[#D8CFBC]/50 hover:bg-[#1D1E17] hover:text-[#D8CFBC]">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col p-4">
+              <div className="mb-3 rounded-md border border-[#565449]/30 bg-[#1D1E17] px-3 py-2">
+                <p className="font-mono text-[11px] text-[#D8CFBC]/50">incident: {selectedAnalysis?.rootCauseService || 'none'}</p>
+              </div>
+              <div className="scrollbar-thin min-h-0 flex-1 space-y-3 overflow-y-auto [scrollbar-color:#565449_transparent]">
+                {chatMessages.length === 0 && (
+                  <div className="mt-4 text-center">
+                    <p className="text-sm text-[#D8CFBC]/40">Ask anything about this incident</p>
+                    <div className="mt-3 space-y-2">
+                      {['What caused this?', 'How long did it last?', 'How do I prevent this?'].map((q) => (
+                        <button key={q} onClick={() => setChatInput(q)} className="block w-full rounded-md border border-[#565449]/40 bg-[#1D1E17] px-3 py-2 text-left text-xs text-[#D8CFBC]/60 hover:border-[#565449] hover:text-[#D8CFBC] transition-colors">{q}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {chatMessages.map((message, index) => (
+                  <div key={index} className={`rounded-md border p-3 text-sm ${message.role === 'assistant' ? 'border-[#565449]/50 bg-[#1D1E17] text-[#D8CFBC]' : 'border-[#565449] bg-[#565449]/20 text-[#FFFBF4]'}`}>
+                    {message.content}
+                  </div>
+                ))}
+                {chatLoading && (
+                  <div className="inline-flex items-center gap-2 rounded-md border border-[#565449]/50 bg-[#1D1E17] p-3 text-xs text-[#D8CFBC]">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Thinking...
+                  </div>
+                )}
+              </div>
+              <div className="relative mt-3">
+                <input
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSendChat(); } }}
+                  disabled={!selectedAnalysis}
+                  placeholder="Ask the agent..."
+                  className="w-full rounded-md border border-[#565449]/60 bg-[#1D1E17] py-3 pl-4 pr-16 font-mono text-sm text-[#FFFBF4] placeholder:text-[#D8CFBC]/30 focus:outline-none focus:border-[#565449] disabled:opacity-50"
+                />
+                <button
+                  onClick={() => void handleSendChat()}
+                  disabled={!selectedAnalysis || chatLoading || !chatInput.trim()}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-[#565449] px-3 py-1.5 text-xs text-[#D8CFBC] disabled:opacity-40"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showComposer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-[#565449]/60 bg-[#1D1E17]">
@@ -868,6 +971,69 @@ function AppPage() {
         </div>
       )}
 
+      {showPredictModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-[#10b981]/40 bg-[#1D1E17]">
+            <div className="flex items-center justify-between border-b border-[#565449]/40 px-5 py-3">
+              <div className="flex items-center gap-2"><Zap className="h-4 w-4 text-[#10b981]" /><p className="font-mono text-xs uppercase tracking-widest text-[#10b981]/80">Predict Blast Radius</p></div>
+              <button onClick={() => setShowPredictModal(false)} className="rounded p-1 text-[#D8CFBC]/50 hover:bg-[#11120D] hover:text-[#D8CFBC]"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <p className="text-sm text-[#D8CFBC]/60">Describe your planned deploy or config change. The agent will predict which services could break before anything goes wrong.</p>
+              <textarea value={predictInput} onChange={e => setPredictInput(e.target.value)} placeholder="e.g. Deploying payment-service v2.4.0 which migrates the orders table schema and changes the Stripe webhook endpoint..." className="h-32 w-full rounded-md border border-[#565449]/60 bg-[#11120D] p-3 font-mono text-xs text-[#FFFBF4] outline-none focus:border-[#565449] placeholder:text-[#D8CFBC]/30" />
+              {predictError && <p className="text-sm text-[#ef4444]">{predictError}</p>}
+              {predictResult && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <span className={`rounded border px-2 py-0.5 font-mono text-xs ${predictResult.riskLevel === 'critical' || predictResult.riskLevel === 'high' ? 'border-[#ef4444]/60 bg-[#ef4444]/20 text-[#ef4444]' : predictResult.riskLevel === 'medium' ? 'border-[#f59e0b]/60 bg-[#f59e0b]/20 text-[#f59e0b]' : 'border-[#10b981]/60 bg-[#10b981]/20 text-[#10b981]'}`}>{predictResult.riskLevel.toUpperCase()}</span>
+                    <p className="text-sm text-[#D8CFBC]">{predictResult.summary}</p>
+                  </div>
+                  <div><p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-[#565449]">Predicted Affected Services</p><div className="space-y-2">{predictResult.predictedAffectedServices.map(s => (<div key={s.service} className="rounded-md border border-[#565449]/40 bg-[#11120D] p-3"><div className="flex items-center justify-between mb-1"><span className="font-mono text-sm text-[#FFFBF4]">{s.service}</span><span className={`font-mono text-[10px] ${s.likelihood === 'high' ? 'text-[#ef4444]' : s.likelihood === 'medium' ? 'text-[#f59e0b]' : 'text-[#10b981]'}`}>{s.likelihood} likelihood</span></div><p className="text-xs text-[#D8CFBC]/60">{s.reason}</p></div>))}</div></div>
+                  <div><p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-[#565449]">Recommendations</p><ol className="space-y-1">{predictResult.recommendations.map((r, i) => (<li key={i} className="flex gap-2 text-sm text-[#D8CFBC]/80"><span className="text-[#10b981] font-mono shrink-0">{i + 1}.</span>{r}</li>))}</ol></div>
+                  <div className="rounded-md border border-[#565449]/40 bg-[#11120D] p-3"><p className="font-mono text-[10px] uppercase tracking-widest text-[#565449] mb-1">Rollback Plan</p><p className="text-sm text-[#D8CFBC]/80">{predictResult.rollbackPlan}</p></div>
+                  <div className="rounded-md border border-[#565449]/40 bg-[#11120D] p-3"><p className="font-mono text-[10px] uppercase tracking-widest text-[#565449] mb-1">Suggested Deploy Window</p><p className="text-sm text-[#D8CFBC]/80">{predictResult.suggestedDeployWindow}</p></div>
+                </div>
+              )}
+            </div>
+            <div className="border-t border-[#565449]/40 px-5 py-3 flex justify-end gap-3">
+              <button onClick={() => setShowPredictModal(false)} className="px-3 py-1.5 text-sm text-[#D8CFBC]/60 hover:text-[#D8CFBC]">Close</button>
+              <button onClick={async () => { if (!predictInput.trim()) return; setPredictLoading(true); setPredictError(''); setPredictResult(null); try { const r = await predictBlastRadius(predictInput); setPredictResult(r); } catch(e) { setPredictError(e instanceof Error ? e.message : 'Failed'); } finally { setPredictLoading(false); } }} disabled={predictLoading || !predictInput.trim()} className="inline-flex items-center gap-2 rounded-md border border-[#10b981]/60 bg-[#10b981]/10 px-3 py-1.5 text-sm text-[#10b981] disabled:opacity-40">
+                {predictLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}{predictLoading ? 'Predicting...' : 'Predict'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBriefingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-[#D8CFBC]/20 bg-[#1D1E17]">
+            <div className="flex items-center justify-between border-b border-[#565449]/40 px-5 py-3">
+              <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-[#D8CFBC]" /><p className="font-mono text-xs uppercase tracking-widest text-[#D8CFBC]/80">On-Call Briefing</p></div>
+              <button onClick={() => setShowBriefingModal(false)} className="rounded p-1 text-[#D8CFBC]/50 hover:bg-[#11120D] hover:text-[#D8CFBC]"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {!briefingResult && !briefingLoading && !briefingError && (<div className="text-center py-8"><p className="text-[#D8CFBC]/60 text-sm mb-4">Pulls all recent incidents, finds patterns, and writes your shift handoff. No input needed.</p><button onClick={async () => { setBriefingLoading(true); setBriefingError(''); try { const r = await generateOnCallBriefing(); setBriefingResult(r); } catch(e) { setBriefingError(e instanceof Error ? e.message : 'Failed'); } finally { setBriefingLoading(false); } }} className="inline-flex items-center gap-2 rounded-md border border-[#D8CFBC]/40 bg-[#D8CFBC]/10 px-4 py-2 text-sm text-[#D8CFBC]"><FileText className="h-4 w-4" />Generate Briefing</button></div>)}
+              {briefingLoading && (<div className="flex items-center gap-3 py-8 justify-center"><Loader2 className="h-5 w-5 animate-spin text-[#D8CFBC]" /><p className="text-sm text-[#D8CFBC]/60">Analyzing recent incidents...</p></div>)}
+              {briefingError && <p className="text-sm text-[#ef4444]">{briefingError}</p>}
+              {briefingResult && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className={`rounded border px-2 py-0.5 font-mono text-xs ${briefingResult.healthSignal === 'red' ? 'border-[#ef4444]/60 bg-[#ef4444]/20 text-[#ef4444]' : briefingResult.healthSignal === 'amber' ? 'border-[#f59e0b]/60 bg-[#f59e0b]/20 text-[#f59e0b]' : 'border-[#10b981]/60 bg-[#10b981]/20 text-[#10b981]'}`}>{briefingResult.healthSignal.toUpperCase()}</span>
+                    <span className="font-mono text-[10px] text-[#565449]">{briefingResult.incidentCount} incidents analyzed · {new Date(briefingResult.generatedAt).toLocaleTimeString()}</span>
+                  </div>
+                  <div className="rounded-md border border-[#565449]/40 bg-[#11120D] p-4"><p className="font-mono text-[10px] uppercase tracking-widest text-[#565449] mb-2">Summary</p><p className="text-sm text-[#D8CFBC]/80 leading-relaxed">{briefingResult.summary}</p></div>
+                  {briefingResult.activeP0s.length > 0 && (<div><p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-[#565449]">Active P0s</p><div className="space-y-2">{briefingResult.activeP0s.map((p, i) => (<div key={i} className="rounded-md border border-[#ef4444]/30 bg-[#ef4444]/10 p-3"><div className="flex justify-between"><span className="font-mono text-sm text-[#FFFBF4]">{p.title}</span><span className="font-mono text-[10px] text-[#ef4444]">{p.hoursAgo}h ago</span></div><p className="text-xs text-[#D8CFBC]/60 mt-1">svc:{p.service} · {p.status}</p></div>))}</div></div>)}
+                  {briefingResult.recurringIssues.length > 0 && (<div><p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-[#565449]">Recurring Issues</p><div className="space-y-2">{briefingResult.recurringIssues.map((r, i) => (<div key={i} className="rounded-md border border-[#565449]/40 bg-[#11120D] p-3"><div className="flex justify-between mb-1"><span className="font-mono text-sm text-[#FFFBF4]">{r.service}</span><span className="font-mono text-[10px] text-[#f59e0b]">{r.occurrences}x</span></div><p className="text-xs text-[#D8CFBC]/60">{r.pattern}</p></div>))}</div></div>)}
+                  <div><p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-[#565449]">Recommended Actions</p><ol className="space-y-1">{briefingResult.recommendedActions.map((a, i) => (<li key={i} className="flex gap-2 text-sm text-[#D8CFBC]/80"><span className="text-[#D8CFBC] font-mono shrink-0">{i + 1}.</span>{a}</li>))}</ol></div>
+                  <div className="flex justify-end"><button onClick={() => navigator.clipboard.writeText(JSON.stringify(briefingResult, null, 2))} className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs text-[#D8CFBC]/70 hover:bg-[#1D1E17] hover:text-[#FFFBF4]"><Copy className="h-3.5 w-3.5" />Copy</button></div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showHistoryPanel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-[#565449]/60 bg-[#1D1E17]">
@@ -917,6 +1083,139 @@ function AppPage() {
               })}
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function HeatmapWidget({ data, loading }: { data: HeatmapDay[]; loading: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [range, setRange] = useState<90 | 180 | 365>(90);
+
+  const today = new Date();
+  const dataMap: Record<string, { count: number; worstSeverity: string }> = {};
+  for (const d of data) dataMap[d.date] = { count: d.count, worstSeverity: d.worstSeverity };
+
+  const start = new Date(today);
+  start.setDate(start.getDate() - (range - 1));
+  start.setDate(start.getDate() - start.getDay()); // rewind to Sunday
+
+  const weeks: Array<Array<{ date: string; count: number; worstSeverity: string; inRange: boolean }>> = [];
+  const cursor = new Date(start);
+  while (cursor <= today) {
+    const week: { date: string; count: number; worstSeverity: string; inRange: boolean }[] = [];
+    for (let d = 0; d < 7; d++) {
+      const dateStr = cursor.toISOString().slice(0, 10);
+      const daysAgo = Math.floor((today.getTime() - cursor.getTime()) / 86400000);
+      const inRange = daysAgo <= range - 1;
+      const found = dataMap[dateStr];
+      week.push({ date: dateStr, count: found?.count ?? 0, worstSeverity: found?.worstSeverity ?? 'none', inRange });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    weeks.push(week);
+  }
+
+  const monthLabels: Array<{ label: string; weekIndex: number }> = [];
+  weeks.forEach((week, wi) => {
+    const firstInRange = week.find(c => c.inRange);
+    if (!firstInRange) return;
+    const d = new Date(firstInRange.date);
+    if (d.getDate() <= 7) {
+      const label = d.toLocaleString('default', { month: 'short' });
+      if (!monthLabels.length || monthLabels[monthLabels.length - 1].label !== label)
+        monthLabels.push({ label, weekIndex: wi });
+    }
+  });
+
+  const getColor = (cell: { count: number; worstSeverity: string; inRange: boolean }) => {
+    if (!cell.inRange) return 'transparent';
+    if (cell.count === 0) return '#2a2b22';
+    if (cell.worstSeverity === 'P0') return cell.count >= 2 ? '#ef4444' : '#f87171';
+    if (cell.worstSeverity === 'P1') return cell.count >= 2 ? '#f59e0b' : '#fbbf24';
+    return '#4ade80';
+  };
+
+  const totalIncidents = data.filter(d => {
+    const daysAgo = Math.floor((today.getTime() - new Date(d.date).getTime()) / 86400000);
+    return daysAgo <= range - 1;
+  }).reduce((sum, d) => sum + d.count, 0);
+
+  return (
+    <div className="rounded-lg border border-[#565449]/40 bg-[#1D1E17]">
+      {/* Toggle header */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-[#11120D] transition-colors rounded-lg"
+      >
+        <div className="flex items-center gap-3">
+          <p className="font-mono text-[11px] uppercase tracking-widest text-[#565449]">Incident Heatmap</p>
+          {!open && totalIncidents > 0 && (
+            <span className="font-mono text-[10px] text-[#D8CFBC]/40">{totalIncidents} incidents · last {range === 365 ? '12 months' : range === 180 ? '6 months' : '3 months'}</span>
+          )}
+        </div>
+        <ChevronRight className={`h-4 w-4 text-[#565449] transition-transform ${open ? 'rotate-90' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="px-5 pb-5 space-y-4">
+          {/* Range selector */}
+          <div className="flex items-center justify-between">
+            <div className="flex gap-1">
+              {([90, 180, 365] as const).map(r => (
+                <button
+                  key={r}
+                  onClick={() => setRange(r)}
+                  className={`px-3 py-1 font-mono text-[10px] rounded-md border transition-colors ${range === r ? 'border-[#D8CFBC]/40 bg-[#D8CFBC]/10 text-[#D8CFBC]' : 'border-[#565449]/40 text-[#565449] hover:text-[#D8CFBC]/60'}`}
+                >
+                  {r === 90 ? '3 months' : r === 180 ? '6 months' : '1 year'}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-3 font-mono text-[10px] text-[#565449]">
+              <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#4ade80]" />P2</span>
+              <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#f59e0b]" />P1</span>
+              <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#ef4444]" />P0</span>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex gap-1">{Array.from({ length: 20 }).map((_, i) => (<div key={i} className="flex flex-col gap-1">{Array.from({ length: 7 }).map((_, j) => (<div key={j} className="h-3 w-3 rounded-sm bg-[#565449]/20" />))}</div>))}</div>
+          ) : (
+            <div className="overflow-x-auto">
+              {/* Month labels */}
+              <div className="flex mb-1" style={{ paddingLeft: '28px' }}>
+                {weeks.map((_, wi) => {
+                  const ml = monthLabels.find(m => m.weekIndex === wi);
+                  return <div key={wi} className="font-mono text-[9px] text-[#565449]" style={{ width: '16px', marginRight: '2px', flexShrink: 0 }}>{ml ? ml.label : ''}</div>;
+                })}
+              </div>
+              <div className="flex gap-0.5">
+                {/* Day labels */}
+                <div className="flex flex-col gap-0.5 mr-1" style={{ paddingTop: '1px' }}>
+                  {['S','M','T','W','T','F','S'].map((d, i) => (
+                    <div key={i} className="font-mono text-[9px] text-[#565449] flex items-center justify-end pr-1" style={{ height: '14px' }}>{i % 2 === 1 ? d : ''}</div>
+                  ))}
+                </div>
+                {/* Grid */}
+                {weeks.map((week, wi) => (
+                  <div key={wi} className="flex flex-col gap-0.5">
+                    {week.map((cell, di) => (
+                      <div
+                        key={di}
+                        title={cell.inRange && cell.count > 0 ? `${cell.date}: ${cell.count} incident${cell.count !== 1 ? 's' : ''} · ${cell.worstSeverity}` : cell.inRange ? cell.date : ''}
+                        className="rounded-sm border border-[#565449]/10 transition-transform hover:scale-125 cursor-pointer"
+                        style={{ width: '14px', height: '14px', backgroundColor: getColor(cell), flexShrink: 0 }}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <p className="font-mono text-[10px] text-[#565449]">{totalIncidents} total incidents in the last {range === 365 ? '12 months' : range === 180 ? '6 months' : '3 months'}</p>
         </div>
       )}
     </div>

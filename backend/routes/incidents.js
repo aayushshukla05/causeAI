@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { fetchIncidentHistory, fetchServiceTrend, getFullIncident } from '../db/supabase.js'
+import { fetchIncidentHistory, fetchServiceTrend, getFullIncident, fetchIncidentsByDate } from '../db/supabase.js'
 
 const router = Router()
 
@@ -24,6 +24,14 @@ router.get('/trend/:serviceName', async (req, res) => {
     res.status(500).json({ error: err.message })
   }
 })
+
+router.get('/heatmap', async (req, res) => {
+  const days = Number.parseInt(req.query.days, 10) || 90;
+  try {
+    const data = await fetchIncidentsByDate(Math.max(7, Math.min(days, 365)));
+    res.json({ heatmap: data });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 router.get('/:id', async (req, res) => {
   try {
