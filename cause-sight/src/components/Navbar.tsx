@@ -1,5 +1,5 @@
 import { Link, useRouterState } from '@tanstack/react-router'
-import { Zap, LayoutDashboard, History, Users, LogOut } from 'lucide-react'
+import { Zap, LayoutDashboard, History, Users, LogOut, FlaskConical } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useEffect, useState } from 'react'
 
@@ -72,6 +72,18 @@ export function Navbar() {
           )
         })}
       </div>
+
+      {/* Remediate beta — only on dashboard */}
+      {pathname.startsWith('/app') && (
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('open-remediate'))}
+          className="flex items-center gap-2 rounded-md border border-[#a855f7]/50 bg-[#a855f7]/10 px-3 py-1.5 text-sm font-medium text-[#c084fc] transition-all hover:bg-[#a855f7]/20 hover:border-[#a855f7]/80 mr-4"
+        >
+          <FlaskConical className="h-3.5 w-3.5" />
+          Remediate
+          <span className="rounded-sm bg-[#a855f7]/20 border border-[#a855f7]/40 px-1 py-0.5 font-mono text-[9px] uppercase tracking-widest text-[#c084fc]">beta</span>
+        </button>
+      )}
 
       {/* Right side */}
       <div className="flex items-center gap-3 shrink-0">
