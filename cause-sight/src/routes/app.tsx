@@ -195,7 +195,7 @@ function AppPage() {
   const [selectedId, setSelectedId] = useState<number | string | null>(null);
   const [selectedAnalysis, setSelectedAnalysis] = useState<CauseAnalysis | null>(null);
 
-  const [tab, setTab] = useState<"trend" | "postmortem" | "ask">("postmortem");
+  const [tab, setTab] = useState<'trend' | 'postmortem' | 'ask' | 'remediate'>("postmortem");
   const [showComposer, setShowComposer] = useState(false);
   const [logs, setLogs] = useState(sampleLogs);
   const [analyzing, setAnalyzing] = useState(false);
@@ -766,12 +766,13 @@ function AppPage() {
                     { id: "trend", label: "Trend", Icon: TrendingUp },
                     { id: "postmortem", label: "Post-Mortem", Icon: FileText },
                     { id: "ask", label: "Ask Agent", Icon: MessageSquare },
+                    { id: "remediate", label: "Remediate", Icon: Zap },
                   ].map((entry) => {
                     const active = tab === entry.id;
                     return (
                       <button
-                        key={entry.id}
-                        onClick={() => setTab(entry.id as typeof tab)}
+                        key={String(entry.id)}
+                        onClick={() => setTab(entry.id as any)}
                         className={`relative flex items-center gap-2 py-3 text-sm transition-colors ${active ? "text-[#FFFBF4]" : "text-[#D8CFBC]/50 hover:text-[#D8CFBC]"
                           }`}
                       >
@@ -821,6 +822,9 @@ function AppPage() {
                   />
                 )}
 
+                {tab === "remediate" && selectedIncident && (
+                  <RemediatePanel incidentId={String(selectedIncident.id)} />
+                )}
                 {tab === "ask" && (
                   <AskTab
                     messages={chatMessages}
@@ -1220,6 +1224,102 @@ function HeatmapWidget({ data, loading }: { data: HeatmapDay[]; loading: boolean
       )}
     </div>
   );
+}
+
+
+function RemediatePanel({ incidentId }: { incidentId: string }) {
+  const [status, setStatus] = useState<string>('idle')
+  const [plan, setPlan] = useState<any>(null)
+  const [events, setEvents] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const startAgent = async () => {
+    setLoading(true)
+    setEvents([])
+    setPlan(null)
+    setStatus('running')
+    const res = await fetch(`http://localhost:3001/api/remediate/${incidentId}/start`, { method: 'POST' })
+    const reader = res.body?.getReader()
+    const decoder = new TextDecoder()
+    if (!reader) return
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      const chunk = decoder.decode(value)
+      const lines = chunk.split('\n').filter((l: string) => l.startsWith('data: '))
+      for (const line of lines) {
+        try {
+          const event = JSON.parse(line.replace('data: ', ''))
+          setEvents((prev: any[]) => [...prev, event])
+          if (event.type === 'PLAN_READY') setPlan(event.plan)
+          if (event.type === 'COMPLETE') setStatus('complete')
+          if (event.type === 'REJECTED') setStatus('rejected')
+        } catch {}
+      }
+    }
+    setLoading(false)
+  }
+
+  const approve = async () => {
+    await fetch(`http://localhost:3001/api/remediate/${incidentId}/approve`, { method: 'POST' })
+  }
+
+  const reject = async () => {
+    await fetch(`http://localhost:3001/api/remediate/${incidentId}/reject`, { method: 'POST' })
+  }
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-mono uppercase tracking-widest text-[#565449]">Remediation Agent</p>
+        {status === 'idle' && (
+          <button onClick={startAgent} disabled={loading}
+            className="inline-flex items-center gap-2 rounded-md bg-red-500/20 border border-red-500/40 px-3 py-1.5 text-sm text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-40">
+            <Zap className="h-3.5 w-3.5" /> Start Agent
+          </button>
+        )}
+        {status === 'complete' && <span className="text-xs text-green-400 font-mono">All actions complete</span>}
+      </div>
+
+      {plan && status === 'running' && (
+        <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-4 space-y-3">
+          <p className="text-xs font-mono text-yellow-400 uppercase tracking-widest">Plan Ready — Awaiting Approval</p>
+          <p className="text-sm text-[#D8CFBC]/70">{plan.overall_strategy}</p>
+          <div className="space-y-2">
+            {plan.actions.map((action: any, i: number) => (
+              <div key={i} className="flex items-start gap-3 rounded-md border border-[#565449]/30 bg-[#11120D] px-3 py-2">
+                <span className="text-xs font-mono text-[#565449] mt-0.5">{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-[#FFFBF4] font-mono">{action.type} on {action.target_service}</p>
+                  <p className="text-xs text-[#D8CFBC]/50 mt-0.5">{action.reason}</p>
+                </div>
+                <span className="text-xs px-1.5 py-0.5 rounded font-mono bg-yellow-500/20 text-yellow-400">{action.risk_level}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={approve} className="flex-1 rounded-md bg-green-500/20 border border-green-500/40 py-2 text-sm text-green-400 hover:bg-green-500/30 transition-colors">Approve and Execute</button>
+            <button onClick={reject} className="rounded-md bg-red-500/10 border border-red-500/30 px-4 py-2 text-sm text-red-400 hover:bg-red-500/20 transition-colors">Reject</button>
+          </div>
+        </div>
+      )}
+
+      {events.length > 0 && (
+        <div className="space-y-1 max-h-64 overflow-y-auto font-mono">
+          {events.map((event: any, i: number) => (
+            <div key={i} className="flex items-start gap-2 text-xs">
+              <span className="text-[#565449] shrink-0">&gt;</span>
+              <span className={event.type === 'COMPLETE' ? 'text-green-400' : event.type === 'EXECUTING' ? 'text-blue-400' : event.type === 'VERIFIED' ? 'text-emerald-400' : event.type === 'AWAITING_APPROVAL' ? 'text-yellow-400' : 'text-[#D8CFBC]/70'}>{event.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {status === 'idle' && events.length === 0 && (
+        <p className="text-sm text-[#D8CFBC]/40 text-center py-8">Start the agent to generate and execute a remediation plan.</p>
+      )}
+    </div>
+  )
 }
 
 function ServiceIcon({ index }: { index: number }) {
