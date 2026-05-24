@@ -66,10 +66,7 @@ const API_BASE = import.meta.env.VITE_CAUSEAI_API_BASE_URL || "https://causeai-b
 function getWsBaseUrl() {
   const configured = import.meta.env.VITE_CAUSEAI_WS_URL;
   if (configured) return configured;
-  if (typeof window === "undefined") return "wss://causeai-backend.onrender.com";
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  // Change this line:
-  return `wss://causeai-backend.onrender.com`;
+  return `wss://causeai-backend.onrender.com/ws`;
 }
 
 function normalizeConfidence(value: unknown) {
