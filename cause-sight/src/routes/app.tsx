@@ -195,7 +195,7 @@ function LogOutButton() {
   return (
     <button
       onClick={logout}
-      className="font-mono text-[10px] uppercase tracking-widest text-[#565449] hover:text-[#D8CFBC]/60 transition-colors"
+      className="font-mono text-[10px] uppercase tracking-widest hover: transition-colors font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}
     >
       sign out
     </button>
@@ -212,6 +212,7 @@ function AppPage() {
   const [selectedAnalysis, setSelectedAnalysis] = useState<CauseAnalysis | null>(null);
 
   const [tab, setTab] = useState<'trend' | 'postmortem' | 'ask' | 'remediate'>("postmortem");
+  const [showRemediate, setShowRemediate] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
   const [logs, setLogs] = useState(sampleLogs);
   const [analyzing, setAnalyzing] = useState(false);
@@ -244,8 +245,7 @@ function AppPage() {
   const severityCounts = useMemo(() => {
     const buckets = { P0: 0, P1: 0, P2: 0 };
     incidents.forEach((incident) => {
-      const analysis = normalizeAnalysis(incident.analysis_results?.[0]);
-      const sev = analysis?.severity as keyof typeof buckets | undefined;
+      const sev = ((incident as any).severity || normalizeAnalysis(incident.analysis_results?.[0])?.severity) as keyof typeof buckets | undefined;
       if (sev && sev in buckets) buckets[sev] += 1;
     });
     return buckets;
@@ -272,6 +272,12 @@ function AppPage() {
     setSavedPostmortem(false);
     setGeneratedPostmortem("");
   }, [selectedAnalysis]);
+
+  useEffect(() => {
+    const handler = () => setShowRemediate(true)
+    window.addEventListener('open-remediate', handler)
+    return () => window.removeEventListener('open-remediate', handler)
+  }, [])
 
   async function refreshIncidents(preferredId?: number | string | null) {
     try {
@@ -546,7 +552,7 @@ function AppPage() {
                     <div className="flex-1">
                       <div className="mb-4 flex items-center gap-3">
                         <span className={`rounded border px-2 py-0.5 font-mono text-[10px] ${sevStyles[severity] || sevStyles.P2}`}>{severity}</span>
-                        <span className="text-[11px] font-mono uppercase tracking-widest text-[#565449]">Root Cause</span>
+                        <span className="text-[11px] font-mono uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Root Cause</span>
                       </div>
                       <h2 className="text-xl font-bold leading-tight text-[#FFFBF4] md:text-2xl">
                         {descriptiveRootCause || "No analysis selected yet."}
@@ -566,7 +572,7 @@ function AppPage() {
 
                 <div className="flex flex-col gap-6">
                   <div className="h-fit rounded-lg border border-[#565449]/40 bg-[#1D1E17] p-6">
-                    <p className="mb-4 text-[11px] font-mono uppercase tracking-widest text-[#565449]">Blast Radius</p>
+                    <p className="mb-4 text-[11px] font-mono uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Blast Radius</p>
                     <div className="mb-5 grid grid-cols-2 gap-4">
                       <div>
                         <p className="font-mono text-4xl font-bold text-[#FFFBF4]">{servicesAffected.toLocaleString()}</p>
@@ -598,7 +604,7 @@ function AppPage() {
                           </div>
                         )}
                       </div>
-                    <p className="mb-2 text-[10px] font-mono uppercase tracking-widest text-[#565449]">Endpoints</p>
+                    <p className="mb-2 text-[10px] font-mono uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Endpoints</p>
                     <div className="flex flex-wrap gap-2">
                       {(affectedEndpoints.length ? affectedEndpoints : ["No endpoint details"]).map((endpoint) => (
                         <span
@@ -615,7 +621,7 @@ function AppPage() {
                 </div>
 
                 <div className="rounded-lg border border-[#565449]/40 bg-[#1D1E17] p-6">
-                  <p className="mb-5 text-[11px] font-mono uppercase tracking-widest text-[#565449]">Incident Timeline</p>
+                  <p className="mb-5 text-[11px] font-mono uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Incident Timeline</p>
                   <div className="relative pl-8">
                     <div className="absolute bottom-1 left-3 top-1 w-px bg-[#565449]/40" />
                     {(timeline.length
@@ -665,7 +671,6 @@ function AppPage() {
                     { id: "trend", label: "Trend", Icon: TrendingUp },
                     { id: "postmortem", label: "Post-Mortem", Icon: FileText },
                     { id: "ask", label: "Ask Agent", Icon: MessageSquare },
-                    { id: "remediate", label: "Remediate", Icon: Zap },
                   ].map((entry) => {
                     const active = tab === entry.id;
                     return (
@@ -721,9 +726,6 @@ function AppPage() {
                   />
                 )}
 
-                {tab === "remediate" && selectedIncident && (
-                  <RemediatePanel incidentId={String(selectedIncident.id)} />
-                )}
                 {tab === "ask" && (
                   <AskTab
                     messages={chatMessages}
@@ -739,7 +741,7 @@ function AppPage() {
 
             {!analyzing && !reportReady && (
               <div className="rounded-lg border border-[#565449]/40 bg-[#1D1E17] p-8 text-center">
-                <p className="font-mono text-xs uppercase tracking-widest text-[#565449]">No Active Report</p>
+                <p className="font-mono text-xs uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>No Active Report</p>
                 <p className="mt-3 text-[#D8CFBC]/65">
                   Run a new incident analysis to generate the full root-cause report view.
                 </p>
@@ -758,7 +760,7 @@ function AppPage() {
             <div className="flex items-center justify-between border-b border-[#f59e0b]/20 px-5 py-4">
               <div className="flex items-center gap-2">
                 <MessageSquare className="h-4 w-4 text-[#f59e0b]" />
-                <p className="font-mono text-xs uppercase tracking-widest text-[#f59e0b]/80">Ask Agent</p>
+                <p className="font-mono text-xs uppercase tracking-widest font-bold text-[#FFFBF4]">Ask Agent</p>
               </div>
               <button onClick={() => setShowAgentDrawer(false)} className="rounded p-1 text-[#D8CFBC]/50 hover:bg-[#1D1E17] hover:text-[#D8CFBC]">
                 <X className="h-4 w-4" />
@@ -812,11 +814,28 @@ function AppPage() {
         </div>
       )}
 
+      {showRemediate && selectedIncident && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowRemediate(false)}>
+          <div className="relative w-full max-w-2xl mx-4 rounded-xl border border-[#a855f7]/30 bg-[#11120D] shadow-[0_0_40px_rgba(168,85,247,0.15)]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#a855f7]/20">
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-sm font-semibold uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#c084fc" }}>Remediation Agent</span>
+                <span className="rounded-sm px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.4)", color: "#c084fc" }}>beta</span>
+              </div>
+              <button onClick={() => setShowRemediate(false)} style={{ color: "#565449" }} className="hover:text-[#D8CFBC] transition-colors text-lg leading-none">✕</button>
+            </div>
+            <div className="p-6 max-h-[70vh] overflow-y-auto">
+              <RemediatePanel incidentId={String(selectedIncident.id)} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {showComposer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-[#565449]/60 bg-[#1D1E17]">
             <div className="flex items-center justify-between border-b border-[#565449]/40 px-5 py-3">
-              <p className="font-mono text-xs uppercase tracking-widest text-[#D8CFBC]/60">Analyze New Incident</p>
+              <p className="font-mono text-xs uppercase tracking-widest font-bold text-[#FFFBF4]">Analyze New Incident</p>
               <button onClick={() => setShowComposer(false)} className="rounded p-1 text-[#D8CFBC]/50 hover:bg-[#11120D] hover:text-[#D8CFBC]">
                 <X className="h-4 w-4" />
               </button>
@@ -830,7 +849,7 @@ function AppPage() {
               />
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <p className="font-mono text-[11px] uppercase tracking-widest text-[#565449]">Demo Scenarios</p>
+                  <p className="font-mono text-[11px] uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Demo Scenarios</p>
                   <p className="text-[11px] text-[#D8CFBC]/45">8 pre-built incidents</p>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
@@ -878,7 +897,7 @@ function AppPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-[#10b981]/40 bg-[#1D1E17]">
             <div className="flex items-center justify-between border-b border-[#565449]/40 px-5 py-3">
-              <div className="flex items-center gap-2"><Zap className="h-4 w-4 text-[#10b981]" /><p className="font-mono text-xs uppercase tracking-widest text-[#10b981]/80">Predict Blast Radius</p></div>
+              <div className="flex items-center gap-2"><Zap className="h-4 w-4 text-[#10b981]" /><p className="font-mono text-xs uppercase tracking-widest font-bold text-[#FFFBF4]">Predict Blast Radius</p></div>
               <button onClick={() => setShowPredictModal(false)} className="rounded p-1 text-[#D8CFBC]/50 hover:bg-[#11120D] hover:text-[#D8CFBC]"><X className="h-4 w-4" /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
@@ -891,10 +910,10 @@ function AppPage() {
                     <span className={`rounded border px-2 py-0.5 font-mono text-xs ${predictResult.riskLevel === 'critical' || predictResult.riskLevel === 'high' ? 'border-[#ef4444]/60 bg-[#ef4444]/20 text-[#ef4444]' : predictResult.riskLevel === 'medium' ? 'border-[#f59e0b]/60 bg-[#f59e0b]/20 text-[#f59e0b]' : 'border-[#10b981]/60 bg-[#10b981]/20 text-[#10b981]'}`}>{predictResult.riskLevel.toUpperCase()}</span>
                     <p className="text-sm text-[#D8CFBC]">{predictResult.summary}</p>
                   </div>
-                  <div><p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-[#565449]">Predicted Affected Services</p><div className="space-y-2">{predictResult.predictedAffectedServices.map(s => (<div key={s.service} className="rounded-md border border-[#565449]/40 bg-[#11120D] p-3"><div className="flex items-center justify-between mb-1"><span className="font-mono text-sm text-[#FFFBF4]">{s.service}</span><span className={`font-mono text-[10px] ${s.likelihood === 'high' ? 'text-[#ef4444]' : s.likelihood === 'medium' ? 'text-[#f59e0b]' : 'text-[#10b981]'}`}>{s.likelihood} likelihood</span></div><p className="text-xs text-[#D8CFBC]/60">{s.reason}</p></div>))}</div></div>
-                  <div><p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-[#565449]">Recommendations</p><ol className="space-y-1">{predictResult.recommendations.map((r, i) => (<li key={i} className="flex gap-2 text-sm text-[#D8CFBC]/80"><span className="text-[#10b981] font-mono shrink-0">{i + 1}.</span>{r}</li>))}</ol></div>
-                  <div className="rounded-md border border-[#565449]/40 bg-[#11120D] p-3"><p className="font-mono text-[10px] uppercase tracking-widest text-[#565449] mb-1">Rollback Plan</p><p className="text-sm text-[#D8CFBC]/80">{predictResult.rollbackPlan}</p></div>
-                  <div className="rounded-md border border-[#565449]/40 bg-[#11120D] p-3"><p className="font-mono text-[10px] uppercase tracking-widest text-[#565449] mb-1">Suggested Deploy Window</p><p className="text-sm text-[#D8CFBC]/80">{predictResult.suggestedDeployWindow}</p></div>
+                  <div><p className="mb-2 font-mono text-[10px] uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Predicted Affected Services</p><div className="space-y-2">{predictResult.predictedAffectedServices.map(s => (<div key={s.service} className="rounded-md border border-[#565449]/40 bg-[#11120D] p-3"><div className="flex items-center justify-between mb-1"><span className="font-mono text-sm text-[#FFFBF4]">{s.service}</span><span className={`font-mono text-[10px] ${s.likelihood === 'high' ? 'text-[#ef4444]' : s.likelihood === 'medium' ? 'text-[#f59e0b]' : 'text-[#10b981]'}`}>{s.likelihood} likelihood</span></div><p className="text-xs text-[#D8CFBC]/60">{s.reason}</p></div>))}</div></div>
+                  <div><p className="mb-2 font-mono text-[10px] uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Recommendations</p><ol className="space-y-1">{predictResult.recommendations.map((r, i) => (<li key={i} className="flex gap-2 text-sm text-[#D8CFBC]/80"><span className="text-[#10b981] font-mono shrink-0">{i + 1}.</span>{r}</li>))}</ol></div>
+                  <div className="rounded-md border border-[#565449]/40 bg-[#11120D] p-3"><p className="font-mono text-[10px] uppercase tracking-widest mb-1 font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Rollback Plan</p><p className="text-sm text-[#D8CFBC]/80">{predictResult.rollbackPlan}</p></div>
+                  <div className="rounded-md border border-[#565449]/40 bg-[#11120D] p-3"><p className="font-mono text-[10px] uppercase tracking-widest mb-1 font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Suggested Deploy Window</p><p className="text-sm text-[#D8CFBC]/80">{predictResult.suggestedDeployWindow}</p></div>
                 </div>
               )}
             </div>
@@ -912,7 +931,7 @@ function AppPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-[#D8CFBC]/20 bg-[#1D1E17]">
             <div className="flex items-center justify-between border-b border-[#565449]/40 px-5 py-3">
-              <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-[#D8CFBC]" /><p className="font-mono text-xs uppercase tracking-widest text-[#D8CFBC]/80">On-Call Briefing</p></div>
+              <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-[#D8CFBC]" /><p className="font-mono text-xs uppercase tracking-widest font-bold text-[#FFFBF4]">On-Call Briefing</p></div>
               <button onClick={() => setShowBriefingModal(false)} className="rounded p-1 text-[#D8CFBC]/50 hover:bg-[#11120D] hover:text-[#D8CFBC]"><X className="h-4 w-4" /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
@@ -925,10 +944,10 @@ function AppPage() {
                     <span className={`rounded border px-2 py-0.5 font-mono text-xs ${briefingResult.healthSignal === 'red' ? 'border-[#ef4444]/60 bg-[#ef4444]/20 text-[#ef4444]' : briefingResult.healthSignal === 'amber' ? 'border-[#f59e0b]/60 bg-[#f59e0b]/20 text-[#f59e0b]' : 'border-[#10b981]/60 bg-[#10b981]/20 text-[#10b981]'}`}>{briefingResult.healthSignal.toUpperCase()}</span>
                     <span className="font-mono text-[10px] text-[#565449]">{briefingResult.incidentCount} incidents analyzed · {new Date(briefingResult.generatedAt).toLocaleTimeString()}</span>
                   </div>
-                  <div className="rounded-md border border-[#565449]/40 bg-[#11120D] p-4"><p className="font-mono text-[10px] uppercase tracking-widest text-[#565449] mb-2">Summary</p><p className="text-sm text-[#D8CFBC]/80 leading-relaxed">{briefingResult.summary}</p></div>
-                  {briefingResult.activeP0s.length > 0 && (<div><p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-[#565449]">Active P0s</p><div className="space-y-2">{briefingResult.activeP0s.map((p, i) => (<div key={i} className="rounded-md border border-[#ef4444]/30 bg-[#ef4444]/10 p-3"><div className="flex justify-between"><span className="font-mono text-sm text-[#FFFBF4]">{p.title}</span><span className="font-mono text-[10px] text-[#ef4444]">{p.hoursAgo}h ago</span></div><p className="text-xs text-[#D8CFBC]/60 mt-1">svc:{p.service} · {p.status}</p></div>))}</div></div>)}
-                  {briefingResult.recurringIssues.length > 0 && (<div><p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-[#565449]">Recurring Issues</p><div className="space-y-2">{briefingResult.recurringIssues.map((r, i) => (<div key={i} className="rounded-md border border-[#565449]/40 bg-[#11120D] p-3"><div className="flex justify-between mb-1"><span className="font-mono text-sm text-[#FFFBF4]">{r.service}</span><span className="font-mono text-[10px] text-[#f59e0b]">{r.occurrences}x</span></div><p className="text-xs text-[#D8CFBC]/60">{r.pattern}</p></div>))}</div></div>)}
-                  <div><p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-[#565449]">Recommended Actions</p><ol className="space-y-1">{briefingResult.recommendedActions.map((a, i) => (<li key={i} className="flex gap-2 text-sm text-[#D8CFBC]/80"><span className="text-[#D8CFBC] font-mono shrink-0">{i + 1}.</span>{a}</li>))}</ol></div>
+                  <div className="rounded-md border border-[#565449]/40 bg-[#11120D] p-4"><p className="font-mono text-[10px] uppercase tracking-widest mb-2 font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Summary</p><p className="text-sm text-[#D8CFBC]/80 leading-relaxed">{briefingResult.summary}</p></div>
+                  {briefingResult.activeP0s.length > 0 && (<div><p className="mb-2 font-mono text-[10px] uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Active P0s</p><div className="space-y-2">{briefingResult.activeP0s.map((p, i) => (<div key={i} className="rounded-md border border-[#ef4444]/30 bg-[#ef4444]/10 p-3"><div className="flex justify-between"><span className="font-mono text-sm text-[#FFFBF4]">{p.title}</span><span className="font-mono text-[10px] text-[#ef4444]">{p.hoursAgo}h ago</span></div><p className="text-xs text-[#D8CFBC]/60 mt-1">svc:{p.service} · {p.status}</p></div>))}</div></div>)}
+                  {briefingResult.recurringIssues.length > 0 && (<div><p className="mb-2 font-mono text-[10px] uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Recurring Issues</p><div className="space-y-2">{briefingResult.recurringIssues.map((r, i) => (<div key={i} className="rounded-md border border-[#565449]/40 bg-[#11120D] p-3"><div className="flex justify-between mb-1"><span className="font-mono text-sm text-[#FFFBF4]">{r.service}</span><span className="font-mono text-[10px] text-[#f59e0b]">{r.occurrences}x</span></div><p className="text-xs text-[#D8CFBC]/60">{r.pattern}</p></div>))}</div></div>)}
+                  <div><p className="mb-2 font-mono text-[10px] uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Recommended Actions</p><ol className="space-y-1">{briefingResult.recommendedActions.map((a, i) => (<li key={i} className="flex gap-2 text-sm text-[#D8CFBC]/80"><span className="text-[#D8CFBC] font-mono shrink-0">{i + 1}.</span>{a}</li>))}</ol></div>
                   <div className="flex justify-end"><button onClick={() => navigator.clipboard.writeText(JSON.stringify(briefingResult, null, 2))} className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs text-[#D8CFBC]/70 hover:bg-[#1D1E17] hover:text-[#FFFBF4]"><Copy className="h-3.5 w-3.5" />Copy</button></div>
                 </div>
               )}
@@ -941,7 +960,7 @@ function AppPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-[#565449]/60 bg-[#1D1E17]">
             <div className="flex items-center justify-between border-b border-[#565449]/40 px-5 py-3">
-              <p className="font-mono text-xs uppercase tracking-widest text-[#D8CFBC]/60">All Incident History</p>
+              <p className="font-mono text-xs uppercase tracking-widest font-bold text-[#FFFBF4]">All Incident History</p>
               <button
                 onClick={() => setShowHistoryPanel(false)}
                 className="rounded p-1 text-[#D8CFBC]/50 hover:bg-[#11120D] hover:text-[#D8CFBC]"
@@ -1053,7 +1072,7 @@ function HeatmapWidget({ data, loading }: { data: HeatmapDay[]; loading: boolean
         className="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-[#11120D] transition-colors rounded-lg"
       >
         <div className="flex items-center gap-3">
-          <p className="font-mono text-[11px] uppercase tracking-widest text-[#565449]">Incident Heatmap</p>
+          <p className="font-mono text-[11px] uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Incident Heatmap</p>
           {!open && totalIncidents > 0 && (
             <span className="font-mono text-[10px] text-[#D8CFBC]/40">{totalIncidents} incidents · last {range === 365 ? '12 months' : range === 180 ? '6 months' : '3 months'}</span>
           )}
@@ -1170,7 +1189,7 @@ function RemediatePanel({ incidentId }: { incidentId: string }) {
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-mono uppercase tracking-widest text-[#565449]">Remediation Agent</p>
+        <p className="text-xs font-mono uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Remediation Agent</p>
         {status === 'idle' && (
           <button onClick={startAgent} disabled={loading}
             className="inline-flex items-center gap-2 rounded-md bg-red-500/20 border border-red-500/40 px-3 py-1.5 text-sm text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-40">
@@ -1182,7 +1201,7 @@ function RemediatePanel({ incidentId }: { incidentId: string }) {
 
       {plan && status === 'running' && (
         <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-4 space-y-3">
-          <p className="text-xs font-mono text-yellow-400 uppercase tracking-widest">Plan Ready — Awaiting Approval</p>
+          <p className="text-xs font-mono text-yellow-400 uppercase tracking-widest font-bold text-[#FFFBF4]">Plan Ready — Awaiting Approval</p>
           <p className="text-sm text-[#D8CFBC]/70">{plan.overall_strategy}</p>
           <div className="space-y-2">
             {plan.actions.map((action: any, i: number) => (
@@ -1241,7 +1260,7 @@ function CascadeGraph({ nodes }: { nodes: { name?: string; status?: string; erro
 
   return (
     <div className="rounded-lg border border-[#565449]/40 bg-[#1D1E17] p-6">
-      <p className="mb-4 text-[11px] font-mono uppercase tracking-widest text-[#565449]">Cascade Chain — {nodes.length} services affected</p>
+      <p className="mb-4 text-[11px] font-mono uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Cascade Chain — {nodes.length} services affected</p>
       <div className="relative w-full overflow-x-auto" style={{ height: totalHeight }}>
         <svg className="absolute inset-0 pointer-events-none" width="100%" height={totalHeight} viewBox={`0 0 1000 ${totalHeight}`} preserveAspectRatio="none">
           <defs>
@@ -1397,8 +1416,9 @@ function ConfidenceArc({ value }: { value: number }) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-mono text-2xl font-bold text-[#FFFBF4]">{safeValue}</span>
-        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#D8CFBC]/50">% confidence</span>
+        <span className="font-mono text-2xl font-bold text-[#FFFBF4]">{safeValue}%</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#D8CFBC]/50">confidence</span>
+        
       </div>
     </div>
   );
@@ -1407,7 +1427,7 @@ function ConfidenceArc({ value }: { value: number }) {
 function FixPanel({ accent, title, steps }: { accent: string; title: string; steps: string[] }) {
   return (
     <div className="rounded-lg border border-[#565449]/40 border-l-4 bg-[#1D1E17] p-6" style={{ borderLeftColor: accent }}>
-      <p className="mb-4 font-mono text-[11px] uppercase tracking-widest text-[#D8CFBC]/60">{title}</p>
+      <p className="mb-4 font-mono text-[11px] uppercase tracking-widest font-bold text-[#FFFBF4]">{title}</p>
       <ol className="space-y-3">
         {steps.map((step, index) => (
           <li key={`${title}-${index}`} className="flex gap-3 text-sm text-[#D8CFBC]/80">
@@ -1523,38 +1543,26 @@ function TrendTab({
     };
   }, [serviceName]);
 
+  const allSameDay = trendData.length > 1 && trendData.every(
+    (r) => new Date(r.created_at).toDateString() === new Date(trendData[0].created_at).toDateString()
+  );
+  const sevToNum: Record<string, number> = { P0: 3, P1: 2, P2: 1 };
   const chartData = trendData.map((row) => ({
     ...row,
-    date: new Date(row.created_at).toLocaleDateString(),
+    date: allSameDay
+      ? new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : new Date(row.created_at).toLocaleDateString(),
+    sevValue: sevToNum[row.severity] ?? 1,
   }));
 
-  const max = Math.max(1, p0, p1, p2);
   return (
     <div className="rounded-lg border border-[#565449]/40 bg-[#1D1E17] p-6">
-      <p className="mb-4 text-[11px] font-mono uppercase tracking-widest text-[#565449]">Severity Distribution</p>
-      <div className="mb-4 flex h-40 items-end gap-3">
-        {[
-          { label: "P0", value: p0, color: "from-[#ef4444]/95 to-[#ef4444]/40" },
-          { label: "P1", value: p1, color: "from-[#f59e0b]/95 to-[#f59e0b]/40" },
-          { label: "P2", value: p2, color: "from-[#D8CFBC]/95 to-[#D8CFBC]/40" },
-        ].map((item) => (
-          <div key={item.label} className="flex flex-1 flex-col items-center gap-1">
-            <div
-              className={`w-full rounded-t bg-linear-to-t ${item.color}`}
-              style={{ height: `${Math.max(12, (item.value / max) * 100)}%` }}
-            />
-            <span className="font-mono text-[10px] text-[#D8CFBC]/55">
-              {item.label} ({item.value})
-            </span>
-          </div>
-        ))}
-      </div>
-      <p className="font-mono text-xs text-[#D8CFBC]/50">
+      <p className="font-mono text-xs text-[#D8CFBC]/50 mb-4">
         Saved postmortems: <span className="text-[#D8CFBC]">{postmortemCount ?? "n/a"}</span>
       </p>
-      <div className="mt-6 rounded-md border border-[#565449]/40 bg-[#11120D] p-4">
+      <div className="rounded-md border border-[#565449]/40 bg-[#11120D] p-4">
         <p className="mb-3 font-mono text-xs text-[#D8CFBC]/60">
-          Service confidence trend: {serviceName || "n/a"}
+          Severity timeline: {serviceName || "n/a"}
         </p>
         {trendLoading && <p className="text-xs text-[#D8CFBC]/50">Loading trend...</p>}
         {!trendLoading && trendError && <p className="text-xs text-[#ef4444]">{trendError}</p>}
@@ -1566,16 +1574,33 @@ function TrendTab({
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
                 <XAxis dataKey="date" stroke="#7f7c6f" tick={{ fill: "#9f9a89", fontSize: 11 }} />
-                <YAxis domain={[0, 100]} stroke="#7f7c6f" tick={{ fill: "#9f9a89", fontSize: 11 }} />
+                <YAxis
+                  domain={[0.5, 3.5]}
+                  ticks={[1, 2, 3]}
+                  tickFormatter={(v) => v === 3 ? "P0" : v === 2 ? "P1" : "P2"}
+                  stroke="#7f7c6f"
+                  tick={{ fill: "#9f9a89", fontSize: 11 }}
+                />
                 <Tooltip
                   contentStyle={{ background: "#11120D", border: "1px solid #565449", borderRadius: 8 }}
                   labelStyle={{ color: "#D8CFBC" }}
-                  formatter={(value: number, _name, context) => [
-                    `${value}% (${context?.payload?.severity || "unknown"})`,
-                    "confidence",
+                  formatter={(_value: number, _name, context) => [
+                    context?.payload?.severity || "unknown",
+                    "severity",
                   ]}
                 />
-                <Line type="monotone" dataKey="confidence_score" stroke="#D8CFBC" strokeWidth={2} dot />
+                <Line
+                  type="stepAfter"
+                  dataKey="sevValue"
+                  stroke="#565449"
+                  strokeWidth={1}
+                  strokeDasharray="4 4"
+                  dot={(props: any) => {
+                    const sev = props.payload?.severity;
+                    const color = sev === "P0" ? "#ef4444" : sev === "P1" ? "#f59e0b" : "#D8CFBC";
+                    return <circle key={props.key} cx={props.cx} cy={props.cy} r={5} fill={color} stroke={color} strokeWidth={1} />;
+                  }}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
