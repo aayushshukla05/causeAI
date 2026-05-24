@@ -108,7 +108,8 @@ export async function runAnalysisPipeline(logs, scenarioName, onStep) {
   try {
     const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('No JSON found in response');
-    parsed = JSON.parse(jsonMatch[0]);
+    const sanitized = jsonMatch[0].replace(/[\x00-\x09\x0b\x0c\x0e-\x1f]/g, ' ');
+    parsed = JSON.parse(sanitized);
   } catch (err) {
     throw new Error('Failed to parse AI response: ' + err.message);
   }

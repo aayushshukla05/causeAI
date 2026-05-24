@@ -214,3 +214,7 @@
     border-color: #565449 !important;
   }
 }
+
+@utility heading-label {
+  color: #b8b0a0;
+}

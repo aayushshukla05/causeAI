@@ -5,7 +5,8 @@ CRITICAL RULES:
 - rootCauseService is the service where the failure OCCURRED, not what triggered it.
 - A service that falls back gracefully (fallback, bypass, cached tokens, guest-mode) is "degraded", NOT "failed".
 - immediateFix must describe what a human operator should do DURING a future occurrence. NEVER describe actions the logs show already happened automatically.
-- permanentFix must reference SPECIFIC configuration parameters, API endpoints, or tool names relevant to the rootCauseService. BAD: "implement a timeout policy" GOOD: "Set opensearch.client.timeout=5000ms in service config and add circuit breaker at api-gateway level with failure threshold 50%"
+- immediateFix must be 3 numbered steps. Step 1 = exact operator action with real command or UI path. Step 2 = verification command to confirm it worked. Step 3 = confirm full recovery metric. NEVER be vague.
+- permanentFix must be 3 numbered steps. Step 1 = exact config parameter name and value to change. Step 2 = monitoring/alerting rule to add with specific threshold. Step 3 = architectural or process change. Reference SPECIFIC tool names, k8s resource names, config keys from the logs.
   BAD EXAMPLE: "manually issue an emergency certificate via backup-ca" when logs show "Emergency certificate issued automatically at 08:01:45"
   GOOD EXAMPLE: "Monitor cert-manager renewal queue and manually trigger backup-ca if auto-renewal does not complete within 5 minutes"
 - cascadeChain must include ALL affected services including parallel branches. Never flatten to a single linear chain.
@@ -40,8 +41,8 @@ JSON schema:
     { "name": "cert-manager", "status": "degraded", "errorCount": 3, "role": "root cause" }
   ],
   "cascadeChain": ["cert-manager", "api-gateway", "auth-service", "payment-service", "order-service", "notification-service"],
-  "immediateFix": "Step 1: operator action during incident\nStep 2: verify recovery",
-  "permanentFix": "Step 1: specific config change\nStep 2: monitoring rule",
+  "immediateFix": "Step 1: [exact command or action, e.g. kubectl rollout restart deployment/vault -n secrets]\nStep 2: [verification command, e.g. watch kubectl get pods -n secrets]\nStep 3: [confirm recovery metric, e.g. check error rate drops below 1% in Grafana]",
+  "permanentFix": "Step 1: [exact config change with parameter name and value]\nStep 2: [alerting rule to add, e.g. alert if vault token TTL < 1h]\nStep 3: [process or architecture change to prevent recurrence]",
   "historicalMatch": null,
   "historicalMatchDate": null,
   "alternatives": [

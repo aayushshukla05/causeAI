@@ -402,15 +402,13 @@ function AppPage() {
     ? cascadeServices
     : cascadeChain.map((name) => ({ name, status: undefined, errorCount: undefined }));
 
-  const immediateFixSteps = (selectedAnalysis?.immediateFix || "")
-    .split("\n")
-    .map((line) => line.replace(/^Step\s*\d+\s*:\s*/i, "").trim())
-    .filter(Boolean);
+  const splitSteps = (text: string) => text
+    .split(/\n|(?=\s*\d+\.\s)|(?=\s*Step\s*\d+)/i)
+    .map((line) => line.replace(/^(Step\s*\d+\s*[:\-\.]*\s*|\d+\.\s*)/i, "").trim())
+    .filter((line) => line.length > 10);
 
-  const permanentFixSteps = (selectedAnalysis?.permanentFix || "")
-    .split("\n")
-    .map((line) => line.replace(/^Step\s*\d+\s*:\s*/i, "").trim())
-    .filter(Boolean);
+  const immediateFixSteps = splitSteps(selectedAnalysis?.immediateFix || "");
+  const permanentFixSteps = splitSteps(selectedAnalysis?.permanentFix || "");
 
   const affectedEndpoints = selectedAnalysis?.blastRadius?.affectedEndpoints || [];
   const requestsFailed = selectedAnalysis?.blastRadius?.estimatedRequestsFailed || 0;
@@ -1409,7 +1407,7 @@ function ConfidenceArc({ value }: { value: number }) {
 function FixPanel({ accent, title, steps }: { accent: string; title: string; steps: string[] }) {
   return (
     <div className="rounded-lg border border-[#565449]/40 border-l-4 bg-[#1D1E17] p-6" style={{ borderLeftColor: accent }}>
-      <p className="mb-4 font-mono text-[11px] uppercase tracking-widest text-[#565449]">{title}</p>
+      <p className="mb-4 font-mono text-[11px] uppercase tracking-widest text-[#D8CFBC]/60">{title}</p>
       <ol className="space-y-3">
         {steps.map((step, index) => (
           <li key={`${title}-${index}`} className="flex gap-3 text-sm text-[#D8CFBC]/80">
