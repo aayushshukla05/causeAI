@@ -9,6 +9,8 @@ import {
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import { AuthProvider, useAuth } from "../context/AuthContext";
+import Login from "./login";
 
 function NotFoundComponent() {
   return (
@@ -114,12 +116,33 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+function AuthGate() {
+  const { user, loading } = useAuth();
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "/";
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#11120D] flex items-center justify-center">
+        <div className="w-1.5 h-1.5 rounded-full bg-[#D8CFBC] animate-pulse" />
+      </div>
+    );
+  }
+
+  if (!user && pathname.startsWith("/app")) {
+    return <Login />;
+  }
+
+  return <Outlet />;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <AuthProvider>
+        <AuthGate />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
