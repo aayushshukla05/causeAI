@@ -538,14 +538,14 @@ function AppPage() {
                   className="inline-flex items-center gap-2 rounded-md border border-[#565449]/60 bg-[#1D1E17] px-3 py-1.5 text-sm text-[#D8CFBC]/80 transition-all hover:bg-[#565449]/20 hover:text-[#FFFBF4]"
                 >
                   <FileText className="h-4 w-4" />
-                  Briefing
+                  On-Call Briefing
                 </button>
                 <button
                   onClick={() => { setPredictResult(null); setPredictError(''); setPredictInput(''); setShowPredictModal(true); }}
                   className="inline-flex items-center gap-2 rounded-md border border-[#10b981]/50 bg-[#10b981]/10 px-3 py-1.5 text-sm text-[#10b981] shadow-[0_0_12px_rgba(16,185,129,0.15)] transition-all hover:bg-[#10b981]/20"
                 >
                   <Zap className="h-4 w-4" />
-                  Predict Blast
+                  Predict Blast Radius
                 </button>
                 <button
                   onClick={() => setShowAgentDrawer(true)}

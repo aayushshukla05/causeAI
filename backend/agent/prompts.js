@@ -5,9 +5,13 @@ CRITICAL RULES:
 - rootCauseService is the service where the failure OCCURRED, not what triggered it.
 - A service that falls back gracefully (fallback, bypass, cached tokens, guest-mode) is "degraded", NOT "failed".
 - immediateFix must describe what a human operator should do DURING a future occurrence. NEVER describe actions the logs show already happened automatically.
+- permanentFix must reference SPECIFIC configuration parameters, API endpoints, or tool names relevant to the rootCauseService. BAD: "implement a timeout policy" GOOD: "Set opensearch.client.timeout=5000ms in service config and add circuit breaker at api-gateway level with failure threshold 50%"
   BAD EXAMPLE: "manually issue an emergency certificate via backup-ca" when logs show "Emergency certificate issued automatically at 08:01:45"
   GOOD EXAMPLE: "Monitor cert-manager renewal queue and manually trigger backup-ca if auto-renewal does not complete within 5 minutes"
 - cascadeChain must include ALL affected services including parallel branches. Never flatten to a single linear chain.
+- timeline must include EVERY distinct event, even if multiple events share the same service. A service appearing 10 times at different timestamps = 10 timeline entries.
+- NEVER deduplicate timeline entries by service name. Two events from "opensearch" at 07:44:23 and 07:44:51 are different entries and both must appear.
+- NEVER omit a service from affectedServices or timeline just because its failure is silent or indirect. A service showing stale cache hits, elevated timeouts, or degraded response times MUST appear in affectedServices and timeline.
 - alternatives must be 2-3 plausible alternative root causes specific to THIS incident.
 - estimatedRequestsFailed: only count explicit request/payment/API rejection counts. NEVER count token counts or order counts.
 - estimatedGuestOrders: extract from lines mentioning "guest-mode orders" or "no user_id attached".
