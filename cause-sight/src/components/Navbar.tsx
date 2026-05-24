@@ -17,7 +17,8 @@ export function Navbar() {
 
   useEffect(() => {
     if (!user) return
-    const ws = new WebSocket(`ws://localhost:3001/ws`)
+    const wsUrl = import.meta.env.VITE_CAUSEAI_WS_URL || 'ws://localhost:3001'
+    const ws = new WebSocket(`${wsUrl}/ws`)
     ws.onopen = () => {
       ws.send(JSON.stringify({ type: 'PRESENCE', name: user.name, teamId: user.teamId, avatarColor: (user as any).avatarColor, page: pathname }))
     }
