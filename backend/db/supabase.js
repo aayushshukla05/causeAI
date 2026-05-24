@@ -328,3 +328,5 @@ export async function fetchRecentIncidentsForBriefing(limit = 20) {
     });
   } catch (err) { console.error('[DB] fetchRecentIncidentsForBriefing error:', err.message); return []; }
 }
+
+export { supabase }
