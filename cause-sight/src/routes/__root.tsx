@@ -10,7 +10,7 @@ import {
 
 import appCss from "../styles.css?url";
 import { AuthProvider, useAuth } from "../context/AuthContext";
-import Login from "./login";
+import Login from "./-login";
 
 function NotFoundComponent() {
   return (
