@@ -1,6 +1,6 @@
 import Groq from 'groq-sdk';
 import { getAnalysisSystemPrompt, buildAnalysisUserPrompt } from './prompts.js';
-import { insertIncident, insertAnalysisResult, fetchRecentAnalyses } from '../db/supabase.js';
+import { insertIncident, insertAnalysisResult, fetchRecentAnalyses, fetchSimilarIncidents, fetchIncidentDNA } from '../db/supabase.js';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -108,7 +108,7 @@ export async function runAnalysisPipeline(logs, scenarioName, onStep) {
   try {
     const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('No JSON found in response');
-    const sanitized = jsonMatch[0].replace(/[\x00-\x09\x0b\x0c\x0e-\x1f]/g, ' ');
+    const sanitized = jsonMatch[0].replace(/[\x00-\x09\x0b\x0c\x0e-\x1f\x7f-\x9f]/g, ' ').replace(/\\(?!["\\\/bfnrtu])/g, '\\\\');
     parsed = JSON.parse(sanitized);
   } catch (err) {
     throw new Error('Failed to parse AI response: ' + err.message);
@@ -125,5 +125,16 @@ export async function runAnalysisPipeline(logs, scenarioName, onStep) {
 
   await onStep({ step: 5, label: 'Saving to incident history', detail: 'Incident saved successfully', status: 'complete' });
 
-  return { ...parsed, incidentId: incident.id, analysisId: analysis.id };
+  const similarIncidents = await fetchSimilarIncidents(
+    parsed.rootCauseService || parsed.root_cause_service,
+    parsed.affectedServices || [],
+    parsed.severity,
+    incident.id,
+    parsed.rootCause || parsed.root_cause
+  )
+  await onStep({ step: 6, label: 'Scanning for similar past incidents', detail: similarIncidents.length > 0 ? `Found ${similarIncidents.length} similar incident(s)` : 'No similar incidents found', status: 'complete' })
+
+  const incidentDna = fetchIncidentDNA(parsed);
+
+  return { ...parsed, incidentId: incident.id, analysisId: analysis.id, similarIncidents, incidentDna };
 }

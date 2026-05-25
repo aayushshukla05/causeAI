@@ -13,16 +13,25 @@ import {
   Copy,
   Database,
   Download,
+  Eye,
   FileText,
   Flame,
   Loader2,
   MessageSquare,
+  Radar,
   Search,
   Send,
   Server,
+  Shield,
   TrendingUp,
   X,
   Zap,
+  Activity,
+  Clock,
+  Target,
+  Crosshair,
+  BarChart3,
+  Layers,
 } from "lucide-react";
 
 import {
@@ -43,6 +52,11 @@ import {
   type CauseAnalysis,
   type IncidentSummary,
   type StreamStep,
+  type SimilarIncident,
+  type IncidentDNA,
+  fetchIncidentSimilar,
+  scanShadowIncidents,
+  type ShadowIncident,
 } from "@/lib/causeai-api";
 import { generatePostmortemContent } from "@/lib/postmortem";
 
@@ -241,6 +255,11 @@ function AppPage() {
   const [heatmapData, setHeatmapData] = useState<HeatmapDay[]>([]);
   const [heatmapLoading, setHeatmapLoading] = useState(true);
   const [activeScenarioName, setActiveScenarioName] = useState("Incident Analysis");
+  const [shadowIncidents, setShadowIncidents] = useState<ShadowIncident[]>([]);
+  const [shadowScanning, setShadowScanning] = useState(false);
+  const [shadowError, setShadowError] = useState('');
+  const [shadowScannedAt, setShadowScannedAt] = useState<string | null>(null);
+  const [activeSidebarSection, setActiveSidebarSection] = useState('root-cause');
 
   const severityCounts = useMemo(() => {
     const buckets = { P0: 0, P1: 0, P2: 0 };
@@ -293,7 +312,19 @@ function AppPage() {
       const targetId = preferredId ?? (urlIncidentId ? (isNaN(Number(urlIncidentId)) ? urlIncidentId : Number(urlIncidentId)) : null) ?? selectedId ?? data[0].id;
       const match = data.find((incident) => incident.id === targetId) || data[0];
       setSelectedId(match.id);
-      setSelectedAnalysis(normalizeAnalysis(match.analysis_results?.[0]));
+      
+      let analysis = normalizeAnalysis(match.analysis_results?.[0]);
+      setSelectedAnalysis(analysis);
+
+      if (match.id) {
+        fetchIncidentSimilar(match.id).then(simData => {
+          setSelectedAnalysis(prev => prev ? {
+            ...prev,
+            similarIncidents: simData.similarIncidents || prev.similarIncidents,
+            incidentDna: simData.incidentDna || prev.incidentDna
+          } : null);
+        }).catch(err => console.error(err));
+      }
     } catch (error) {
       setIncidentsError(error instanceof Error ? error.message : "Failed to load incidents");
     } finally {
@@ -375,11 +406,36 @@ function AppPage() {
   }
 
   function selectIncident(incident: IncidentSummary) {
-    const analysis = normalizeAnalysis(incident.analysis_results?.[0]);
+    let analysis = normalizeAnalysis(incident.analysis_results?.[0]);
     setSelectedId(incident.id);
     setSelectedAnalysis(analysis);
     setActiveScenarioName(analysis?.rootCause || incident.scenario_name || "Incident Analysis");
     setShowHistoryPanel(false);
+
+    if (incident.id) {
+      fetchIncidentSimilar(incident.id).then(simData => {
+        setSelectedAnalysis(prev => prev ? {
+          ...prev,
+          similarIncidents: simData.similarIncidents || prev.similarIncidents,
+          incidentDna: simData.incidentDna || prev.incidentDna
+        } : null);
+      }).catch(err => console.error(err));
+    }
+  }
+
+  async function handleShadowScan() {
+    if (shadowScanning) return;
+    setShadowScanning(true);
+    setShadowError('');
+    try {
+      const result = await scanShadowIncidents();
+      setShadowIncidents(result.shadowIncidents || []);
+      setShadowScannedAt(result.scannedAt);
+    } catch (err) {
+      setShadowError(err instanceof Error ? err.message : 'Shadow scan failed');
+    } finally {
+      setShadowScanning(false);
+    }
   }
 
   const selectedIncident = incidents.find((incident) => incident.id === selectedId) || null;
@@ -444,8 +500,40 @@ function AppPage() {
       <div className="relative z-10 flex min-h-screen w-full">
       <Navbar />
 
-        <main className="mt-14 min-w-0 flex-1">
-          <div className="mx-auto w-full max-w-360 space-y-6 px-4 py-8 md:px-5">
+        <main className="mt-14 min-w-0 flex-1 flex h-[calc(100vh-3.5rem)]">
+          {reportReady && (
+            <aside className="sticky top-0 hidden w-64 flex-col border-r border-[#565449]/40 bg-[#11120D] p-6 lg:flex overflow-y-auto">
+              <p className="mb-6 font-mono text-[10px] uppercase tracking-widest text-[#565449] font-bold">Dashboard</p>
+              <nav className="flex flex-col gap-2">
+                {[
+                  { id: 'root-cause', label: 'Root Cause', icon: Target },
+                  { id: 'shadow', label: 'Shadow Incidents', icon: Shield },
+                  { id: 'blast-radius', label: 'Blast Radius', icon: Crosshair },
+                  { id: 'timeline', label: 'Incident Timeline', icon: Clock },
+                  { id: 'fixes', label: 'Remediation', icon: CheckCircle2 },
+                  { id: 'dna', label: 'Incident DNA', icon: Database },
+                  { id: 'heatmap', label: 'Incident Heatmap', icon: BarChart3 },
+                ].map(item => (
+                  <a
+                    key={item.id}
+                    href={`#${item.id}`}
+                    onClick={(e) => {
+                       e.preventDefault();
+                       document.getElementById(item.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                       setActiveSidebarSection(item.id);
+                    }}
+                    className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${activeSidebarSection === item.id ? 'bg-[#565449]/30 text-[#FFFBF4] border border-[#565449]/50' : 'text-[#D8CFBC]/60 hover:bg-[#1D1E17] hover:text-[#D8CFBC] border border-transparent'}`}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    {item.label}
+                  </a>
+                ))}
+              </nav>
+            </aside>
+          )}
+
+          <div className="flex-1 overflow-y-auto scroll-smooth">
+            <div className="mx-auto w-full max-w-360 space-y-6 px-4 py-8 md:px-5 pb-32">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h1 className="max-w-2xl text-xl font-bold leading-tight text-[#FFFBF4] md:text-2xl">
@@ -547,7 +635,7 @@ function AppPage() {
 
             {reportReady && (
               <>
-                <div className="relative overflow-hidden rounded-lg border border-[#565449]/40 border-l-4 border-l-[#ef4444] bg-[#1D1E17] shadow-[inset_8px_0_24px_-12px_rgba(239,68,68,0.5)]">
+                <div id="root-cause" className="relative overflow-hidden rounded-lg border border-[#565449]/40 border-l-4 border-l-[#ef4444] bg-[#1D1E17] shadow-[inset_8px_0_24px_-12px_rgba(239,68,68,0.5)]">
                   <div className="relative flex flex-col gap-8 p-7 md:flex-row md:items-start">
                     <div className="flex-1">
                       <div className="mb-4 flex items-center gap-3">
@@ -570,8 +658,57 @@ function AppPage() {
                   </div>
                 </div>
 
+                <div id="shadow" className="rounded-lg border border-[#f59e0b]/40 bg-[#1D1E17] p-6 shadow-[inset_0_2px_15px_-5px_rgba(245,158,11,0.15)]">
+                  <div className="mb-5 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-[#f59e0b]" />
+                      <p className="text-[11px] font-mono uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#f59e0b" }}>Shadow Incidents (Near-misses)</p>
+                    </div>
+                    <button
+                      onClick={handleShadowScan}
+                      disabled={shadowScanning}
+                      className="inline-flex items-center gap-2 rounded-md border border-[#f59e0b]/40 bg-[#11120D] px-3 py-1.5 text-xs text-[#f59e0b] hover:bg-[#f59e0b]/10 disabled:opacity-50 transition-colors"
+                    >
+                      {shadowScanning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Radar className="h-3 w-3" />}
+                      {shadowScanning ? "Scanning logs..." : "Scan for near-misses"}
+                    </button>
+                  </div>
+                  {shadowError && (
+                    <div className="mb-4 rounded border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400">
+                      {shadowError}
+                    </div>
+                  )}
+                  {shadowIncidents.length > 0 ? (
+                    <div className="space-y-3">
+                      {shadowIncidents.map((inc, i) => (
+                        <div key={i} className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center rounded-md border border-[#565449]/40 bg-[#11120D] p-4">
+                          <div>
+                            <div className="flex items-center gap-3">
+                              <span className="rounded border border-[#f59e0b]/50 px-1.5 py-0.5 font-mono text-[9px] text-[#f59e0b]">Risk: {inc.riskScore}</span>
+                              <span className="font-mono text-xs font-bold text-[#D8CFBC]">{inc.service}</span>
+                            </div>
+                            <p className="mt-1 text-sm text-[#FFFBF4]">{inc.title}</p>
+                            <p className="mt-1 font-mono text-[10px] text-[#D8CFBC]/50">Pattern: {inc.pattern}</p>
+                          </div>
+                          <span className="shrink-0 rounded bg-[#f59e0b]/10 px-2 py-1 font-mono text-[10px] text-[#f59e0b]">
+                            {inc.recommendedAction}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : shadowScannedAt ? (
+                    <div className="rounded border border-[#00d084]/20 bg-[#00d084]/5 p-4 text-center">
+                      <CheckCircle2 className="mx-auto h-5 w-5 text-[#00d084] opacity-80" />
+                      <p className="mt-2 text-sm text-[#00d084]/80">No shadow incidents detected in recent logs.</p>
+                      <p className="mt-1 font-mono text-[10px] text-[#D8CFBC]/40">Last scanned: {new Date(shadowScannedAt).toLocaleTimeString()}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[#D8CFBC]/50">Scan proactive logs to detect patterns of incidents before they break SLAs.</p>
+                  )}
+                </div>
+
                 <div className="flex flex-col gap-6">
-                  <div className="h-fit rounded-lg border border-[#565449]/40 bg-[#1D1E17] p-6">
+                  <div id="blast-radius" className="h-fit rounded-lg border border-[#565449]/40 bg-[#1D1E17] p-6">
                     <p className="mb-4 text-[11px] font-mono uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Blast Radius</p>
                     <div className="mb-5 grid grid-cols-2 gap-4">
                       <div>
@@ -620,7 +757,7 @@ function AppPage() {
                   <CascadeGraph nodes={cascadeNodes} />
                 </div>
 
-                <div className="rounded-lg border border-[#565449]/40 bg-[#1D1E17] p-6">
+                <div id="timeline" className="rounded-lg border border-[#565449]/40 bg-[#1D1E17] p-6">
                   <p className="mb-5 text-[11px] font-mono uppercase tracking-widest font-bold text-[#FFFBF4]" style={{ color: "#9a9080" }}>Incident Timeline</p>
                   <div className="relative pl-8">
                     <div className="absolute bottom-1 left-3 top-1 w-px bg-[#565449]/40" />
@@ -651,7 +788,7 @@ function AppPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-6 lg:grid-cols-2">
+                <div id="fixes" className="grid gap-6 lg:grid-cols-2">
                   <FixPanel
                     accent="#ef4444"
                     title="Immediate Fix"
@@ -664,7 +801,151 @@ function AppPage() {
                   />
                 </div>
 
-                <HeatmapWidget data={heatmapData} loading={heatmapLoading} />
+
+                {/* Incident DNA & Similar Incidents */}
+                {((selectedAnalysis?.similarIncidents && selectedAnalysis.similarIncidents.length > 0) || selectedAnalysis?.incidentDna) && (
+                  <div id="dna" className="rounded-lg border border-[#3b82f6]/30 bg-[#11120D] overflow-hidden">
+                    {/* DNA Header */}
+                    <div className="border-b border-[#3b82f6]/20 bg-[#1D1E17] p-5">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Database className="h-4 w-4 text-[#3b82f6]" />
+                        <p className="font-mono text-xs uppercase tracking-widest font-bold text-[#FFFBF4]">Incident DNA Profile</p>
+                      </div>
+                      
+                      {selectedAnalysis?.incidentDna ? (
+                        <div className="flex flex-wrap items-start gap-4">
+                          <div className="rounded border border-[#565449]/40 bg-[#11120D] px-3 py-2">
+                            <p className="font-mono text-[9px] uppercase tracking-widest text-[#565449] mb-1">Failure Mode</p>
+                            <div className="flex items-center gap-1.5">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#3b82f6]" />
+                              <span className="font-mono text-xs text-[#FFFBF4] capitalize">{selectedAnalysis.incidentDna.failureMode}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="rounded border border-[#565449]/40 bg-[#11120D] px-3 py-2">
+                            <p className="font-mono text-[9px] uppercase tracking-widest text-[#565449] mb-1">Root Service</p>
+                            <span className="font-mono text-xs text-[#FFFBF4]">{selectedAnalysis.incidentDna.rootCauseService}</span>
+                          </div>
+                          
+                          <div className="rounded border border-[#565449]/40 bg-[#11120D] px-3 py-2">
+                            <p className="font-mono text-[9px] uppercase tracking-widest text-[#565449] mb-1">Cascade Depth</p>
+                            <div className="flex gap-0.5 mt-0.5">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <span key={i} className={`h-3 w-1.5 rounded-sm ${i < (selectedAnalysis?.incidentDna?.cascadeDepth || 0) ? 'bg-[#ef4444]' : 'bg-[#565449]/20'}`} />
+                              ))}
+                            </div>
+                          </div>
+                          
+                          <div className="flex-1 min-w-[200px]">
+                            <p className="font-mono text-[9px] uppercase tracking-widest text-[#565449] mb-1.5">Key Signals</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {selectedAnalysis.incidentDna.keywords.slice(0, 5).map((kw, i) => (
+                                <span key={i} className="rounded-sm bg-[#3b82f6]/10 px-1.5 py-0.5 font-mono text-[10px] text-[#3b82f6]">
+                                  {kw}
+                                </span>
+                              ))}
+                              {selectedAnalysis.incidentDna.keywords.length > 5 && (
+                                <span className="rounded-sm bg-[#565449]/10 px-1.5 py-0.5 font-mono text-[10px] text-[#565449]">
+                                  +{selectedAnalysis.incidentDna.keywords.length - 5}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-[#D8CFBC]/60">Generating fingerprint...</p>
+                      )}
+                    </div>
+
+                    {/* Similar Incidents */}
+                    {selectedAnalysis?.similarIncidents && selectedAnalysis.similarIncidents.length > 0 && (
+                      <div className="p-5">
+                        <p className="mb-4 font-mono text-[10px] uppercase tracking-widest text-[#565449]">
+                          Historical Matches ({selectedAnalysis.similarIncidents.length})
+                        </p>
+                        <div className="flex flex-col gap-4">
+                          {selectedAnalysis.similarIncidents.map((inc: any, i: number) => (
+                            <div key={i} className="group relative rounded-lg border border-[#565449]/40 bg-[#1D1E17] p-5 transition-all hover:border-[#3b82f6]/50 hover:bg-[#1D1E17]/80 hover:shadow-[0_4px_20px_rgba(59,130,246,0.05)]">
+                              
+                              <div className="flex items-start gap-5">
+                                {/* Score Ring */}
+                                <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#11120D]">
+                                  <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 100 100">
+                                    <circle cx="50" cy="50" r="46" fill="none" stroke="#565449" strokeWidth="6" strokeOpacity="0.2" />
+                                    <circle cx="50" cy="50" r="46" fill="none" stroke={inc.similarityScore >= 75 ? '#10b981' : inc.similarityScore >= 50 ? '#f59e0b' : '#3b82f6'} strokeWidth="6" strokeLinecap="round" strokeDasharray={`${inc.similarityScore * 2.89} 289`} className="transition-all duration-1000 ease-out" />
+                                  </svg>
+                                  <div className="flex flex-col items-center">
+                                    <span className="font-mono text-sm font-bold text-[#FFFBF4]">{inc.similarityScore}</span>
+                                    <span className="font-mono text-[8px] text-[#565449]">MATCH</span>
+                                  </div>
+                                </div>
+                                
+                                {/* Match Details */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-mono text-sm font-semibold text-[#FFFBF4] truncate max-w-[200px]">
+                                        {inc.root_cause_service}
+                                      </span>
+                                      <span className={`rounded border px-1.5 py-0.5 font-mono text-[9px] ${sevStyles[inc.severity] || sevStyles.P2}`}>
+                                        {inc.severity}
+                                      </span>
+                                      <span className="font-mono text-[10px] text-[#565449]">
+                                        {new Date(inc.created_at).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                    <Link 
+                                      to="/app" 
+                                      search={{ incident: inc.incident_id }}
+                                      className="flex items-center gap-1 font-mono text-[10px] text-[#3b82f6] opacity-0 transition-opacity group-hover:opacity-100"
+                                    >
+                                      View Report <ArrowRight className="h-3 w-3" />
+                                    </Link>
+                                  </div>
+                                  
+                                  <p className="mb-3 text-sm text-[#D8CFBC]/70 line-clamp-2">{inc.root_cause}</p>
+                                  
+                                  {/* Match Factors */}
+                                  {inc.matchDetails && inc.matchDetails.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 mb-3">
+                                      {inc.matchDetails.map((match: string) => (
+                                        <span key={match} className="rounded-sm border border-[#565449]/40 bg-[#11120D] px-1.5 py-0.5 font-mono text-[9px] text-[#565449] capitalize">
+                                          {match.replace('_', ' ')}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  
+                                  {/* Fix */}
+                                  {inc.immediate_fix && (
+                                    <div className="relative rounded border border-[#10b981]/20 bg-[#10b981]/5 p-3 group/fix">
+                                      <div className="flex items-center justify-between mb-1.5">
+                                        <p className="font-mono text-[10px] uppercase tracking-widest text-[#10b981] font-bold flex items-center gap-1.5">
+                                          <CheckCircle2 className="h-3 w-3" /> What Fixed It
+                                        </p>
+                                        <button 
+                                          onClick={() => navigator.clipboard.writeText(inc.immediate_fix)}
+                                          className="flex items-center gap-1 rounded bg-[#10b981]/10 px-1.5 py-0.5 font-mono text-[9px] text-[#10b981] opacity-0 transition-opacity hover:bg-[#10b981]/20 group-hover/fix:opacity-100"
+                                        >
+                                          <Copy className="h-2.5 w-2.5" /> Copy Fix
+                                        </button>
+                                      </div>
+                                      <p className="text-xs text-[#D8CFBC]/80 leading-relaxed line-clamp-2">{inc.immediate_fix}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div id="heatmap">
+                  <HeatmapWidget data={heatmapData} loading={heatmapLoading} />
+                </div>
 
                 <div className="flex items-center gap-6 border-b border-[#565449]/40">
                   {[
@@ -749,6 +1030,7 @@ function AppPage() {
             )}
 
             <div className="h-8" />
+          </div>
           </div>
         </main>
       </div>
@@ -1584,10 +1866,10 @@ function TrendTab({
                 <Tooltip
                   contentStyle={{ background: "#11120D", border: "1px solid #565449", borderRadius: 8 }}
                   labelStyle={{ color: "#D8CFBC" }}
-                  formatter={(_value: number, _name, context) => [
+                  formatter={((_value: number, _name: any, context: any) => [
                     context?.payload?.severity || "unknown",
                     "severity",
-                  ]}
+                  ]) as any}
                 />
                 <Line
                   type="stepAfter"

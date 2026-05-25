@@ -80,3 +80,30 @@ export function getPredictionSystemPrompt() {
 export function getBriefingSystemPrompt() {
   return `You are an SRE lead generating a shift handoff briefing. Return ONLY valid JSON, no markdown.\n\n{\n  "summary": "2-3 sentence summary of the shift",\n  "recurringIssues": [\n    { "service": "service-name", "occurrences": 3, "pattern": "What keeps going wrong" }\n  ],\n  "activeP0s": [\n    { "title": "Incident title", "service": "service-name", "hoursAgo": 2, "status": "resolved or ongoing" }\n  ],\n  "recommendedActions": ["Specific action 1", "Specific action 2"],\n  "healthSignal": "green"\n}\n\nhealthSignal: green (quiet), amber (watch closely), or red (active P0s). recurringIssues: only services with 2+ incidents. activeP0s: only P0s from last 24h. Be specific and actionable.`;
 }
+
+export function getShadowAnalysisSystemPrompt() {
+  return `You are a proactive SRE AI. Your goal is to scan raw logs and identify "Shadow Incidents" (near-misses).
+Look for patterns like:
+- Repeated retries that eventually succeeded.
+- Latency spikes that recovered.
+- Circuit breakers tripping and closing.
+- Rate limits being hit with successful backoffs.
+- High resource usage (memory, connection pools) that recovered before crashing.
+
+Return ONLY valid JSON, no markdown.
+{
+  "shadowIncidents": [
+    {
+      "title": "Short title of the near-miss",
+      "service": "affected service",
+      "riskScore": 85, // 0-100 based on how close it came to a full outage
+      "pattern": "What happened (e.g. DB connection pool exhausted but recovered via retries)",
+      "recommendedAction": "Proactive fix to prevent a real incident (e.g. increase connection pool size to 100)"
+    }
+  ]
+}`;
+}
+
+export function buildShadowUserPrompt(logs) {
+  return `Scan these logs for shadow incidents (near-misses). Return ONLY the JSON object.\n\n=== RAW LOGS ===\n${logs}`;
+}

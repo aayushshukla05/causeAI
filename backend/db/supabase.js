@@ -330,3 +330,120 @@ export async function fetchRecentIncidentsForBriefing(limit = 20) {
 }
 
 export { supabase }
+
+export function extractKeywords(text) {
+  if (!text) return [];
+  const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'was', 'were', 'in', 'on', 'at', 'to', 'for', 'with', 'by', 'of', 'from', 'due', 'error', 'failed']);
+  return text.toLowerCase()
+    .replace(/[^\w\s-]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !stopWords.has(w));
+}
+
+export function determineFailureMode(text) {
+  if (!text) return 'unknown';
+  const t = text.toLowerCase();
+  if (t.includes('oom') || t.includes('memory') || t.includes('heap') || t.includes('leak')) return 'memory';
+  if (t.includes('timeout') || t.includes('timed out')) return 'timeout';
+  if (t.includes('deploy') || t.includes('rollout') || t.includes('release')) return 'deployment';
+  if (t.includes('connection') || t.includes('pool') || t.includes('refused') || t.includes('socket')) return 'connection';
+  if (t.includes('auth') || t.includes('secret') || t.includes('token') || t.includes('jwt') || t.includes('credentials')) return 'auth';
+  if (t.includes('disk') || t.includes('space') || t.includes('storage') || t.includes('exhaustion')) return 'disk';
+  if (t.includes('cpu') || t.includes('spike') || t.includes('load') || t.includes('traffic')) return 'load';
+  return 'unknown';
+}
+
+export function fetchIncidentDNA(analysis) {
+  if (!analysis) return null;
+  const rootCause = analysis.root_cause || analysis.rootCause || '';
+  const rootCauseService = analysis.root_cause_service || analysis.rootCauseService || '';
+  const affected = analysis.affected_services || analysis.affectedServices || [];
+  const severity = analysis.severity || 'P2';
+
+  return {
+    failureMode: determineFailureMode(rootCause),
+    rootCauseService,
+    affectedServices: Array.isArray(affected) ? affected.map(s => s?.name || s) : [],
+    severity,
+    keywords: extractKeywords(rootCause),
+    cascadeDepth: Array.isArray(analysis.cascade_chain || analysis.cascadeChain) ? (analysis.cascade_chain || analysis.cascadeChain).length : 0
+  };
+}
+
+export async function fetchSimilarIncidents(rootCauseService, affectedServices, severity, excludeIncidentId, rootCauseText = '') {
+  try {
+    const { data, error } = await supabase
+      .from('analysis_results')
+      .select('id, incident_id, root_cause, root_cause_service, severity, affected_services, immediate_fix, permanent_fix, created_at, incidents(scenario_name)')
+      .neq('incident_id', excludeIncidentId)
+      .order('created_at', { ascending: false })
+      .limit(50)
+
+    if (error) throw error
+
+    const currentKeywords = extractKeywords(rootCauseText);
+    const currentMode = determineFailureMode(rootCauseText);
+
+    const scored = (data || []).map(past => {
+      let score = 0;
+      const matchDetails = [];
+
+      // 1. Root Cause Service (+25)
+      if (past.root_cause_service === rootCauseService) {
+        score += 25;
+        matchDetails.push('service');
+      }
+
+      // 2. Severity (+10)
+      if (past.severity === severity) {
+        score += 10;
+        matchDetails.push('severity');
+      }
+
+      // 3. Affected Services Overlap (+15 max)
+      const pastServices = Array.isArray(past.affected_services) ? past.affected_services.map(s => s?.name || s) : [];
+      const currServices = Array.isArray(affectedServices) ? affectedServices.map(s => s?.name || s) : [];
+      const overlap = currServices.filter(s => pastServices.includes(s)).length;
+      const union = new Set([...currServices, ...pastServices]).size;
+      if (union > 0) {
+        const topologyScore = Math.round((overlap / union) * 15);
+        score += topologyScore;
+        if (topologyScore > 5) matchDetails.push('topology');
+      }
+
+      // 4. Failure Mode (+10)
+      const pastMode = determineFailureMode(past.root_cause);
+      if (pastMode === currentMode && currentMode !== 'unknown') {
+        score += 10;
+        matchDetails.push('failure_mode');
+      }
+
+      // 5. Keyword Overlap (+40 max)
+      const pastKeywords = extractKeywords(past.root_cause);
+      const kwOverlap = currentKeywords.filter(k => pastKeywords.includes(k)).length;
+      const kwUnion = new Set([...currentKeywords, ...pastKeywords]).size;
+      if (kwUnion > 0) {
+        const textScore = Math.round((kwOverlap / kwUnion) * 40);
+        score += textScore;
+        if (textScore > 10) matchDetails.push('keywords');
+      }
+
+      const scenario_name = Array.isArray(past.incidents) ? past.incidents[0]?.scenario_name : past.incidents?.scenario_name;
+
+      return { 
+        ...past, 
+        similarityScore: score,
+        matchDetails,
+        scenario_name
+      };
+    })
+
+    return scored
+      .filter(p => p.similarityScore >= 30)
+      .sort((a, b) => b.similarityScore - a.similarityScore)
+      .slice(0, 5)
+  } catch (err) {
+    console.error('[DB] fetchSimilarIncidents error:', err.message)
+    return []
+  }
+}

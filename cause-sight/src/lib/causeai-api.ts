@@ -5,6 +5,28 @@ export type StreamStep = {
   status?: "pending" | "running" | "complete";
 };
 
+export type IncidentDNA = {
+  failureMode: string;
+  rootCauseService: string;
+  affectedServices: string[];
+  severity: string;
+  keywords: string[];
+  cascadeDepth: number;
+};
+
+export type SimilarIncident = {
+  id: string | number;
+  incident_id: string | number;
+  root_cause: string;
+  root_cause_service: string;
+  severity: string;
+  immediate_fix: string;
+  similarityScore: number;
+  matchDetails: string[];
+  created_at: string;
+  scenario_name?: string;
+};
+
 type BlastRadius = {
   estimatedUsersAffected?: number;
   estimatedRequestsFailed?: number;
@@ -46,6 +68,8 @@ export type CauseAnalysis = {
   immediateFix: string;
   permanentFix: string;
   alternatives: Array<{ cause?: string; confidence?: number }>;
+  similarIncidents?: SimilarIncident[];
+  incidentDna?: IncidentDNA;
 };
 
 export type IncidentSummary = {
@@ -61,7 +85,7 @@ export type TrendPoint = {
   severity: string;
 };
 
-const API_BASE = import.meta.env.VITE_CAUSEAI_API_BASE_URL || "https://causeai-backend.onrender.com/api";
+const API_BASE = import.meta.env.VITE_CAUSEAI_API_BASE_URL || (import.meta.env.DEV ? "http://localhost:3001/api" : "https://causeai-backend.onrender.com/api");
 
 function getWsBaseUrl() {
   const configured = import.meta.env.VITE_CAUSEAI_WS_URL;
@@ -190,6 +214,8 @@ export function normalizeAnalysis(value: unknown): CauseAnalysis | null {
       cause: readString(alt, "cause"),
       confidence: typeof alt.confidence === "number" ? alt.confidence : undefined,
     })),
+    similarIncidents: readArray<SimilarIncident>(raw, "similarIncidents", "similar_incidents"),
+    incidentDna: (raw.incidentDna ?? raw.incident_dna) as IncidentDNA | undefined,
   };
 }
 
@@ -273,6 +299,12 @@ export async function fetchIncidentById(id: number | string) {
   );
 }
 
+export async function fetchIncidentSimilar(incidentId: number | string) {
+  return parseResponse<{ similarIncidents: SimilarIncident[]; incidentDna: IncidentDNA | null }>(
+    await fetch(`${API_BASE}/incidents/${incidentId}/similar`),
+  );
+}
+
 export async function fetchServiceTrend(serviceName: string) {
   return parseResponse<TrendPoint[]>(
     await fetch(`${API_BASE}/incidents/trend/${encodeURIComponent(serviceName)}`),
@@ -342,4 +374,18 @@ export async function generateOnCallBriefing(): Promise<OnCallBriefing> {
   const data = await parseResponse<{ briefing?: OnCallBriefing }>(await fetch(`${API_BASE}/briefing`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }));
   if (!data.briefing) throw new Error('No briefing returned');
   return data.briefing;
+}
+
+export type ShadowIncident = {
+  title: string;
+  service: string;
+  riskScore: number;
+  pattern: string;
+  recommendedAction: string;
+};
+
+export async function scanShadowIncidents(): Promise<{ shadowIncidents: ShadowIncident[]; scannedAt: string; logLines: number }> {
+  return parseResponse<{ shadowIncidents: ShadowIncident[]; scannedAt: string; logLines: number }>(
+    await fetch(`${API_BASE}/incidents/shadow/scan`),
+  );
 }
