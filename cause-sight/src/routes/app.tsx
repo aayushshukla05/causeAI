@@ -274,6 +274,13 @@ function AppPage() {
     void refreshIncidents();
     void refreshPostmortemCount();
     fetchHeatmap(365).then(setHeatmapData).catch(() => {}).finally(() => setHeatmapLoading(false));
+
+    const handleNewIncident = (e: any) => {
+      const newId = e.detail?.incidentId;
+      void refreshIncidents(newId);
+    };
+    window.addEventListener('causeai:new-incident', handleNewIncident);
+    return () => window.removeEventListener('causeai:new-incident', handleNewIncident);
   }, []);
 
   useEffect(() => {
@@ -309,7 +316,9 @@ function AppPage() {
         setSelectedAnalysis(null);
         return;
       }
-      const targetId = preferredId ?? (urlIncidentId ? (isNaN(Number(urlIncidentId)) ? urlIncidentId : Number(urlIncidentId)) : null) ?? selectedId ?? data[0].id;
+      const firstAnalyzed = data.find((incident) => Array.isArray(incident.analysis_results) && incident.analysis_results.length > 0);
+      const defaultId = firstAnalyzed ? firstAnalyzed.id : data[0].id;
+      const targetId = preferredId ?? (urlIncidentId ? (isNaN(Number(urlIncidentId)) ? urlIncidentId : Number(urlIncidentId)) : null) ?? selectedId ?? defaultId;
       const match = data.find((incident) => incident.id === targetId) || data[0];
       setSelectedId(match.id);
       
@@ -546,6 +555,13 @@ function AppPage() {
                       ? `Analyzed ${timeAgo(selectedIncident.created_at)}`
                       : "Run an analysis to populate this workspace"}
                 </p>
+                {selectedIncident && !analyzing && (
+                  <p className={`mt-1.5 text-xs font-semibold ${selectedIncident.source && selectedIncident.source !== 'manual' ? 'text-green-400 font-bold' : 'text-[#FFFBF4]'}`}>
+                    {selectedIncident.source && selectedIncident.source !== 'manual'
+                      ? `Generated from ${selectedIncident.source.charAt(0).toUpperCase() + selectedIncident.source.slice(1)} alert`
+                      : 'Source: Manual Log Entry'}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-7">
                 <div className="flex items-center gap-2 text-[#D8CFBC]/80">

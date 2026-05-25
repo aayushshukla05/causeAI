@@ -26,6 +26,9 @@ export function Navbar() {
       try {
         const msg = JSON.parse(e.data)
         if (msg.type === 'PRESENCE_UPDATE') setOnlineUsers(msg.users.filter((u: OnlineUser) => u.name !== user.name))
+        if (msg.type === 'NEW_INCIDENT') {
+          window.dispatchEvent(new CustomEvent('causeai:new-incident', { detail: { incidentId: msg.incidentId } }))
+        }
       } catch { }
     }
     const interval = setInterval(() => {

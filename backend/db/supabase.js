@@ -102,7 +102,7 @@ export async function fetchIncidentHistory(limit = 50) {
     const { data, error } = await supabase
       .from('incidents')
       .select(
-        'id, scenario_name, created_at, analysis_results(id, incident_id, created_at, root_cause, severity, confidence_score, root_cause_service, business_impact, timeline, affected_services, cascade_chain, immediate_fix, permanent_fix, blast_radius, alternatives)',
+        'id, scenario_name, created_at, source, analysis_results(id, incident_id, created_at, root_cause, severity, confidence_score, root_cause_service, business_impact, timeline, affected_services, cascade_chain, immediate_fix, permanent_fix, blast_radius, alternatives)',
       )
       .order('created_at', { ascending: false })
       .limit(limit)
@@ -113,6 +113,7 @@ export async function fetchIncidentHistory(limit = 50) {
       const latest = Array.isArray(incident.analysis_results) ? incident.analysis_results[0] : null
       return {
         ...incident,
+        source: incident.source ?? null,
         root_cause: latest?.root_cause ?? null,
         severity: latest?.severity ?? null,
         confidence_score: latest?.confidence_score ?? null,

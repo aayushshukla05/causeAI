@@ -3,6 +3,7 @@ import { normalizeDatadog } from '../adapters/datadog.js'
 import { normalizeGrafana } from '../adapters/grafana.js'
 import { normalizeNewRelic } from '../adapters/newrelic.js'
 import { supabase } from '../db/supabase.js'
+import { broadcastGlobal } from '../websocket/streamHandler.js'
 
 const router = express.Router()
 
@@ -101,6 +102,7 @@ async function triggerAnalysis(normalized) {
         logs: normalized.raw_logs
       })
     })
+    broadcastGlobal({ type: 'NEW_INCIDENT', incidentId: incident.id })
   } catch (err) {
     console.error('Analysis pipeline call failed:', err.message)
   }

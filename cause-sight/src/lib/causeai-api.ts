@@ -76,6 +76,7 @@ export type IncidentSummary = {
   id: number | string;
   scenario_name?: string;
   created_at: string;
+  source?: string;
   analysis_results?: unknown[];
 };
 

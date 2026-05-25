@@ -158,3 +158,13 @@ export function handleConnection(socket, request, _wss) {
   })
 }
 
+export function broadcastGlobal(payload) {
+  presenceMap.forEach((team) => {
+    team.forEach((u) => {
+      if (u.ws && u.ws.readyState === 1) {
+        u.ws.send(JSON.stringify(payload))
+      }
+    })
+  })
+}
+
