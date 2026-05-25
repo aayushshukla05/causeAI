@@ -17,7 +17,7 @@ export function Navbar() {
 
   useEffect(() => {
     if (!user) return
-    const wsUrl = import.meta.env.VITE_CAUSEAI_WS_URL || 'ws://localhost:3001'
+    const wsUrl = import.meta.env.VITE_CAUSEAI_WS_URL || (import.meta.env.DEV ? 'ws://localhost:3001' : 'wss://causeai-backend.onrender.com')
     const ws = new WebSocket(`${wsUrl}/ws`)
     ws.onopen = () => {
       ws.send(JSON.stringify({ type: 'PRESENCE', name: user.name, teamId: user.teamId, avatarColor: (user as any).avatarColor, page: pathname }))
@@ -26,7 +26,7 @@ export function Navbar() {
       try {
         const msg = JSON.parse(e.data)
         if (msg.type === 'PRESENCE_UPDATE') setOnlineUsers(msg.users.filter((u: OnlineUser) => u.name !== user.name))
-      } catch {}
+      } catch { }
     }
     const interval = setInterval(() => {
       if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'PRESENCE', name: user.name, teamId: user.teamId, avatarColor: (user as any).avatarColor, page: pathname }))
@@ -58,11 +58,10 @@ export function Navbar() {
             <Link
               key={to}
               to={to}
-              className={`relative inline-flex items-center gap-2 px-5 py-2 rounded-md text-sm font-medium transition-all ${
-                active
+              className={`relative inline-flex items-center gap-2 px-5 py-2 rounded-md text-sm font-medium transition-all ${active
                   ? 'bg-[#565449]/25 text-[#FFFBF4] shadow-[0_0_16px_rgba(86,84,73,0.25)] border border-[#565449]/50'
                   : 'text-[#D8CFBC]/55 hover:text-[#D8CFBC] hover:bg-[#1D1E17]/60 border border-transparent'
-              }`}
+                }`}
             >
               <Icon className={`h-4 w-4 ${active ? 'text-[#D8CFBC]' : 'text-[#565449]'}`} />
               {label}

@@ -21,7 +21,7 @@ function TeamPage() {
 
   useEffect(() => {
     if (!user) return
-    const wsUrl = import.meta.env.VITE_CAUSEAI_WS_URL || 'ws://localhost:3001'
+    const wsUrl = import.meta.env.VITE_CAUSEAI_WS_URL || (import.meta.env.DEV ? 'ws://localhost:3001' : 'wss://causeai-backend.onrender.com')
     const ws = new WebSocket(`${wsUrl}/ws`)
 
     ws.onopen = () => {
@@ -40,7 +40,7 @@ function TeamPage() {
         if (msg.type === 'PRESENCE_UPDATE') {
           setOnlineUsers(msg.users)
         }
-      } catch {}
+      } catch { }
     }
 
     return () => ws.close()

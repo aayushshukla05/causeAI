@@ -90,7 +90,7 @@ const API_BASE = import.meta.env.VITE_CAUSEAI_API_BASE_URL || (import.meta.env.D
 function getWsBaseUrl() {
   const configured = import.meta.env.VITE_CAUSEAI_WS_URL;
   if (configured) return configured;
-  return `wss://causeai-backend.onrender.com/ws`;
+  return import.meta.env.DEV ? "ws://localhost:3001/ws" : "wss://causeai-backend.onrender.com/ws";
 }
 
 function normalizeConfidence(value: unknown) {

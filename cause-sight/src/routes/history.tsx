@@ -33,8 +33,8 @@ function getHeatColor(count: number, sev: string) {
 
 
 function CalendarHeatmap({ cells }: { cells: { date: string; count: number; sev: string }[] }) {
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  const DAYS = ['S','M','T','W','T','F','S']
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
   // Pad start to Sunday
   const padded: { date: string; count: number; sev: string }[] = [...cells]
@@ -106,8 +106,8 @@ function CalendarHeatmap({ cells }: { cells: { date: string; count: number; sev:
                         transition: 'transform 0.1s',
                         cursor: cell.date ? 'pointer' : 'default'
                       }}
-                      onMouseEnter={e => { if(cell.date)(e.target as HTMLElement).style.transform='scale(1.4)' }}
-                      onMouseLeave={e => { (e.target as HTMLElement).style.transform='scale(1)' }}
+                      onMouseEnter={e => { if (cell.date) (e.target as HTMLElement).style.transform = 'scale(1.4)' }}
+                      onMouseLeave={e => { (e.target as HTMLElement).style.transform = 'scale(1)' }}
                     />
                   )
                 })}
@@ -129,15 +129,15 @@ function HistoryPage() {
   const calendarCells = (() => {
     const today = new Date()
     const days: { date: string; count: number; sev: string }[] = []
-    
+
     // Dummy incidents for last 90 days (remove when real data fills in)
     const dummyDates = new Set<string>()
     const dummySevs: Record<string, string> = {}
-    const seed = [2,5,7,11,14,16,19,22,25,28,31,34,37,40,43,46,49,52,55,58,61,64,67,70,73,76,79,82,85,88]
+    const seed = [2, 5, 7, 11, 14, 16, 19, 22, 25, 28, 31, 34, 37, 40, 43, 46, 49, 52, 55, 58, 61, 64, 67, 70, 73, 76, 79, 82, 85, 88]
     seed.forEach((d, i) => {
       const dt = new Date(today)
       dt.setDate(dt.getDate() - d)
-      const key = dt.toISOString().slice(0,10)
+      const key = dt.toISOString().slice(0, 10)
       dummyDates.add(key)
       dummySevs[key] = i % 3 === 0 ? 'P0' : i % 3 === 1 ? 'P1' : 'P2'
     })
@@ -149,7 +149,7 @@ function HistoryPage() {
     for (let i = heatRange - 1; i >= 0; i--) {
       const d = new Date(today)
       d.setDate(d.getDate() - i)
-      const key = d.toISOString().slice(0,10)
+      const key = d.toISOString().slice(0, 10)
       if (realMap[key]) {
         days.push({ date: key, count: realMap[key].count, sev: realMap[key].sev })
       } else if (dummyDates.has(key)) {
@@ -176,13 +176,13 @@ function HistoryPage() {
   }, [])
 
   useEffect(() => {
-    const wsUrl = import.meta.env.VITE_CAUSEAI_WS_URL || 'ws://localhost:3001'
+    const wsUrl = import.meta.env.VITE_CAUSEAI_WS_URL || (import.meta.env.DEV ? 'ws://localhost:3001' : 'wss://causeai-backend.onrender.com')
     const ws = new WebSocket(`${wsUrl}/ws`)
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data)
         if (msg.type === 'VIEWER_COUNTS') setViewers(msg.counts)
-      } catch {}
+      } catch { }
     }
     return () => ws.close()
   }, [])
@@ -224,9 +224,9 @@ function HistoryPage() {
             </div>
             <CalendarHeatmap cells={calendarCells} />
             <div className="mt-3 flex items-center justify-between">
-              <p className="font-mono text-[10px] text-[#565449]">{calendarCells.filter(d => d.count > 0).length} active days · {calendarCells.reduce((a,d) => a + d.count, 0)} total incidents</p>
+              <p className="font-mono text-[10px] text-[#565449]">{calendarCells.filter(d => d.count > 0).length} active days · {calendarCells.reduce((a, d) => a + d.count, 0)} total incidents</p>
               <div className="flex items-center gap-2 text-[10px] font-mono text-[#565449]">
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{backgroundColor:'#2a2b22',border:'1px solid rgba(86,84,73,0.3)'}} /> none</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: '#2a2b22', border: '1px solid rgba(86,84,73,0.3)' }} /> none</span>
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-[#565449]" /> P2</span>
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-[#fcd34d]" /> P1</span>
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-[#ef4444]" /> P0</span>
@@ -240,11 +240,10 @@ function HistoryPage() {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-3 py-1 rounded-md text-xs font-mono border transition-colors ${
-                  filter === f
+                className={`px-3 py-1 rounded-md text-xs font-mono border transition-colors ${filter === f
                     ? 'bg-[#565449] border-[#565449] text-[#FFFBF4]'
                     : 'border-[#565449]/40 text-[#D8CFBC]/50 hover:text-[#D8CFBC]'
-                }`}
+                  }`}
               >
                 {f === 'all' ? 'All' : f}
               </button>
